@@ -10,7 +10,7 @@ This project incorporates design and data from the following open-source project
 
 The base CJK characters and the final compiled font files are governed by the SIL Open Font License, Version 1.1.
 
-Copyright (c) 2026, Jay Zhuang (https://ens.tw),  
+Copyright (c) 2026, enstw (https://ens.tw/font),  
 with Reserved Font Name "ENS Font" and "Elegant Nerd Sino".
 
 Copyright (c) 2021, Xiaocheng Liao (https://github.com/lxgw),  
