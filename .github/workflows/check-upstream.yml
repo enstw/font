@@ -1,0 +1,123 @@
+# .github/workflows/check-upstream.yml
+#
+# Scheduled workflow that polls upstream font release pages daily.
+# If any upstream has a new release:
+#   1. Updates versions.json with the new tag data
+#   2. Commits and pushes the update to main
+#   3. Triggers build-release.yml via repository_dispatch
+#
+# NOTE: This workflow uses BOT_PAT (not GITHUB_TOKEN) because the built-in
+# GITHUB_TOKEN cannot trigger repository_dispatch events that launch other
+# workflow runs - this is a GitHub security restriction.
+#
+# Required secrets:
+#   BOT_PAT  - Fine-grained PAT with: contents:write, actions:write
+
+name: Check Upstream Versions
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # Daily at 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: "Force trigger build even if no upstream changes detected"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      versions_changed: ${{ steps.check.outputs.VERSIONS_CHANGED }}
+      new_version:      ${{ steps.check.outputs.NEW_VERSION }}
+      git_tag:          ${{ steps.check.outputs.GIT_TAG }}
+      lxgw_tag:         ${{ steps.check.outputs.LXGW_TAG }}
+      nerd_tag:         ${{ steps.check.outputs.NERD_TAG }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_PAT }}
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Check upstream versions
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_PAT }}
+        # check_versions.py exits 0 = no change, 1 = changed, 2 = error.
+        # We capture exit code via '|| EXIT=$?' to handle it ourselves.
+        run: |
+          EXIT=0
+          python scripts/check_versions.py \
+            --versions-file versions.json \
+            --github-token "$GITHUB_TOKEN" \
+          || EXIT=$?
+
+          if [ "$EXIT" -eq 2 ]; then
+            echo "ERROR: check_versions.py encountered an error" >&2
+            exit 2
+          fi
+
+          # EXIT=1 means changes found; the script already wrote GITHUB_OUTPUT
+          if [ "$EXIT" -eq 0 ]; then
+            echo "VERSIONS_CHANGED=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit updated versions.json
+        if: steps.check.outputs.VERSIONS_CHANGED == 'true'
+        run: |
+          git config user.name  "ENS Font Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add versions.json
+          git commit -m "chore(versions): update to ${{ steps.check.outputs.GIT_TAG }}"
+          git push
+
+  trigger-build:
+    needs: check-versions
+    if: |
+      needs.check-versions.outputs.versions_changed == 'true' ||
+      github.event.inputs.force_build == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Read versions.json for current tags (force_build fallback)
+        id: read-versions
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_PAT }}
+
+      - name: Dispatch build-release workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_PAT }}
+          script: |
+            const git_tag   = "${{ needs.check-versions.outputs.git_tag }}";
+            const version   = "${{ needs.check-versions.outputs.new_version }}";
+            const lxgw_tag  = "${{ needs.check-versions.outputs.lxgw_tag }}";
+            const nerd_tag  = "${{ needs.check-versions.outputs.nerd_tag }}";
+
+            console.log(`Dispatching build for tag: ${git_tag}`);
+
+            await github.rest.repos.createDispatchEvent({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              event_type: "upstream-updated",
+              client_payload: { git_tag, version, lxgw_tag, nerd_tag }
+            });
+
+            console.log("Build dispatch sent successfully.");

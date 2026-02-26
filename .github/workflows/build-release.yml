@@ -1,0 +1,357 @@
+# .github/workflows/build-release.yml
+#
+# Main build and release workflow for ENS Font.
+#
+# Triggered by:
+#   - repository_dispatch (event: upstream-updated) from check-upstream.yml
+#   - workflow_dispatch for manual builds
+#
+# Produces four TTF files (Regular, Bold, Italic, Bold Italic) packaged
+# into a ZIP archive and published as a GitHub Release.
+#
+# Required secrets:
+#   BOT_PAT  - Fine-grained PAT with: contents:write
+#
+# Job dependency graph:
+#   resolve-params
+#       |
+#   download-fonts
+#       |
+#   build (matrix x4, parallel)
+#       |
+#   release
+
+name: Build and Release ENS Font
+
+on:
+  repository_dispatch:
+    types: [upstream-updated]
+
+  workflow_dispatch:
+    inputs:
+      git_tag:
+        description: "Git tag to create (leave blank to read from versions.json)"
+        required: false
+      lxgw_tag:
+        description: "LXGW WenKai release tag (e.g. v1.521)"
+        required: false
+      nerd_tag:
+        description: "Nerd Fonts release tag (e.g. v3.4.0)"
+        required: false
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+
+# ---------------------------------------------------------------------------
+# Job 1: Resolve build parameters
+# ---------------------------------------------------------------------------
+jobs:
+  resolve-params:
+    runs-on: ubuntu-latest
+    outputs:
+      git_tag:  ${{ steps.params.outputs.git_tag }}
+      version:  ${{ steps.params.outputs.version }}
+      lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
+      nerd_tag:  ${{ steps.params.outputs.nerd_tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve parameters
+        id: params
+        run: |
+          # Priority: dispatch payload > workflow_dispatch inputs > versions.json
+          GIT_TAG="${{ github.event.client_payload.git_tag || github.event.inputs.git_tag }}"
+          LXGW_TAG="${{ github.event.client_payload.lxgw_tag || github.event.inputs.lxgw_tag }}"
+          NERD_TAG="${{ github.event.client_payload.nerd_tag || github.event.inputs.nerd_tag }}"
+
+          # Fallback: read from versions.json
+          if [ -z "$GIT_TAG" ]; then
+            GIT_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['git_tag'])")
+          fi
+          if [ -z "$LXGW_TAG" ]; then
+            LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['lxgw_wenkai']['tag'])")
+          fi
+          if [ -z "$NERD_TAG" ]; then
+            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['meslo_nerd']['tag'])")
+          fi
+
+          # Extract X.Y.Z from tag (strip leading 'v', take up to first '_')
+          VERSION=$(echo "$GIT_TAG" | sed 's/^v//' | cut -d'_' -f1)
+
+          echo "git_tag=$GIT_TAG"   >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"   >> "$GITHUB_OUTPUT"
+          echo "lxgw_tag=$LXGW_TAG" >> "$GITHUB_OUTPUT"
+          echo "nerd_tag=$NERD_TAG"  >> "$GITHUB_OUTPUT"
+
+          echo "--- Build parameters ---"
+          echo "  git_tag  : $GIT_TAG"
+          echo "  version  : $VERSION"
+          echo "  lxgw_tag : $LXGW_TAG"
+          echo "  nerd_tag : $NERD_TAG"
+
+# ---------------------------------------------------------------------------
+# Job 2: Download upstream font sources
+# ---------------------------------------------------------------------------
+  download-fonts:
+    needs: resolve-params
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download LXGW WenKai Mono TTF files
+        env:
+          LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          mkdir -p fonts/wenkai
+          BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/download/${LXGW_TAG}"
+          for VARIANT in Regular Bold Light; do
+            FILE="LXGWWenKaiMono-${VARIANT}.ttf"
+            echo "Downloading $FILE ..."
+            curl -fsSL \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              "${BASE_URL}/${FILE}" \
+              -o "fonts/wenkai/${FILE}"
+          done
+          echo "LXGW WenKai downloads:"
+          ls -lh fonts/wenkai/
+
+      - name: Download Nerd Fonts Meslo archive
+        env:
+          NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          mkdir -p fonts/meslo
+          ARCHIVE="Meslo.tar.xz"
+          URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE}"
+          echo "Downloading ${ARCHIVE} ..."
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            "$URL" \
+            -o "/tmp/${ARCHIVE}"
+          echo "Extracting Meslo fonts ..."
+          tar -xJf "/tmp/${ARCHIVE}" -C fonts/meslo/
+          echo "MesloLGM fonts found:"
+          ls fonts/meslo/MesloLGMNerdFont-*.ttf
+
+      - name: Upload font sources as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: font-sources
+          path: fonts/
+          retention-days: 1
+
+# ---------------------------------------------------------------------------
+# Job 3: Build merged fonts (4-way matrix, runs in parallel)
+# ---------------------------------------------------------------------------
+  build:
+    needs: [resolve-params, download-fonts]
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false   # Build all styles even if one fails
+      matrix:
+        include:
+          - style:       Regular
+            wenkai_file: LXGWWenKaiMono-Regular.ttf
+            meslo_file:  MesloLGMNerdFont-Regular.ttf
+            output_file: ENSFont-Regular.ttf
+
+          - style:       Bold
+            wenkai_file: LXGWWenKaiMono-Bold.ttf
+            meslo_file:  MesloLGMNerdFont-Bold.ttf
+            output_file: ENSFont-Bold.ttf
+
+          - style:       Italic
+            # WenKai has no true italic; use Regular as the CJK base.
+            # Terminal emulators synthesize italic for CJK when needed.
+            wenkai_file: LXGWWenKaiMono-Regular.ttf
+            meslo_file:  MesloLGMNerdFont-Italic.ttf
+            output_file: ENSFont-Italic.ttf
+
+          - style:       Bold Italic
+            wenkai_file: LXGWWenKaiMono-Bold.ttf
+            meslo_file:  MesloLGMNerdFont-BoldItalic.ttf
+            output_file: ENSFont-BoldItalic.ttf
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download font sources
+        uses: actions/download-artifact@v4
+        with:
+          name: font-sources
+          path: fonts/
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Build ${{ matrix.style }}
+        env:
+          VERSION:  ${{ needs.resolve-params.outputs.version }}
+          LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
+          NERD_TAG:  ${{ needs.resolve-params.outputs.nerd_tag }}
+        run: |
+          mkdir -p dist
+
+          LXGW_VER="${LXGW_TAG#v}"
+          NERD_VER="${NERD_TAG#v}"
+
+          python scripts/merge.py \
+            --wenkai  "fonts/wenkai/${{ matrix.wenkai_file }}" \
+            --meslo   "fonts/meslo/${{ matrix.meslo_file }}" \
+            --output  "dist/${{ matrix.output_file }}" \
+            --style   "${{ matrix.style }}" \
+            --version "$VERSION" \
+            --lxgw-version "$LXGW_VER" \
+            --nerd-version "$NERD_VER"
+
+      - name: Verify OFL compliance
+        run: |
+          python3 - <<'EOF'
+          from fontTools.ttLib import TTFont
+          import sys
+
+          path = "dist/${{ matrix.output_file }}"
+          font = TTFont(path)
+          name = font["name"]
+
+          family  = name.getDebugName(1) or ""
+          ps_name = name.getDebugName(6) or ""
+          version = name.getDebugName(5) or ""
+
+          print(f"Family name    : {family}")
+          print(f"PostScript name: {ps_name}")
+          print(f"Version string : {version}")
+
+          # OFL reserved name checks
+          violations = []
+          for reserved in ["LXGW", "霞鶩", "Klee", "Meslo"]:
+              if reserved in family or reserved in ps_name:
+                  violations.append(f"Reserved name '{reserved}' found in font metadata!")
+
+          if violations:
+              for v in violations:
+                  print(f"OFL VIOLATION: {v}", file=sys.stderr)
+              sys.exit(1)
+
+          print("OFL compliance checks PASSED")
+          EOF
+
+      - name: Upload built font
+        uses: actions/upload-artifact@v4
+        with:
+          name: font-${{ matrix.style }}
+          path: dist/${{ matrix.output_file }}
+          retention-days: 1
+
+# ---------------------------------------------------------------------------
+# Job 4: Assemble and publish GitHub Release
+# ---------------------------------------------------------------------------
+  release:
+    needs: [resolve-params, build]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BOT_PAT }}
+
+      - name: Download all built fonts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: font-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Create ZIP archive
+        env:
+          VERSION: ${{ needs.resolve-params.outputs.version }}
+        run: |
+          ls -lh dist/
+          cd dist
+          zip -j "../ENSFont-${VERSION}.zip" *.ttf
+          cd ..
+          ls -lh "ENSFont-${VERSION}.zip"
+
+      - name: Create git tag
+        env:
+          GIT_TAG: ${{ needs.resolve-params.outputs.git_tag }}
+        run: |
+          git config user.name  "ENS Font Bot"
+          git config user.email "bot@users.noreply.github.com"
+          if ! git rev-parse "$GIT_TAG" >/dev/null 2>&1; then
+            git tag -a "$GIT_TAG" -m "Release $GIT_TAG"
+            git push origin "$GIT_TAG"
+            echo "Created tag: $GIT_TAG"
+          else
+            echo "Tag $GIT_TAG already exists, skipping creation."
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          token: ${{ secrets.BOT_PAT }}
+          tag_name: ${{ needs.resolve-params.outputs.git_tag }}
+          name: "ENS Font v${{ needs.resolve-params.outputs.version }}"
+          body: |
+            ## ENS Font v${{ needs.resolve-params.outputs.version }}
+
+            **Elegant · Nerd · Sino** — A terminal font merging the best of three worlds.
+
+            | Source | Version | Role |
+            |--------|---------|------|
+            | LXGW WenKai Mono | ${{ needs.resolve-params.outputs.lxgw_tag }} | CJK base layer |
+            | MesloLGM Nerd Font | ${{ needs.resolve-params.outputs.nerd_tag }} | ASCII (priority 1) + Nerd Icons (priority 2) |
+
+            ### Character Priority
+            1. **MesloLGM** — ASCII (U+0020–U+007E), Latin, box drawing, arrows
+            2. **Nerd Fonts** — PUA icons (E000–F8FF), Powerline symbols
+            3. **LXGW WenKai** — CJK (U+4E00–U+9FFF), Hiragana, Katakana, fullwidth
+
+            ### Font Files
+            | File | Style |
+            |------|-------|
+            | `ENSFont-Regular.ttf`    | Regular     |
+            | `ENSFont-Bold.ttf`       | Bold        |
+            | `ENSFont-Italic.ttf`     | Italic      |
+            | `ENSFont-BoldItalic.ttf` | Bold Italic |
+
+            Download `ENSFont-${{ needs.resolve-params.outputs.version }}.zip` for all styles at once.
+
+            ### License
+            Released under [SIL OFL 1.1](https://openfontlicense.org).
+            ASCII/Latin glyphs from MesloLGM are used under [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+            PUA icons from Nerd Fonts are used under [MIT License](https://github.com/ryanoasis/nerd-fonts/blob/master/LICENSE).
+
+            Reserved Font Names: **"ENS Font"** and **"Elegant Nerd Sino"**.
+            The names "LXGW", "霞鶩", "Klee", and "Meslo" are **NOT** used by this font.
+
+            ### Upstream References
+            - [LXGW WenKai ${{ needs.resolve-params.outputs.lxgw_tag }}](https://github.com/lxgw/LxgwWenKai/releases/tag/${{ needs.resolve-params.outputs.lxgw_tag }})
+            - [Nerd Fonts ${{ needs.resolve-params.outputs.nerd_tag }}](https://github.com/ryanoasis/nerd-fonts/releases/tag/${{ needs.resolve-params.outputs.nerd_tag }})
+          draft: false
+          prerelease: false
+          files: |
+            dist/ENSFont-Regular.ttf
+            dist/ENSFont-Bold.ttf
+            dist/ENSFont-Italic.ttf
+            dist/ENSFont-BoldItalic.ttf
+            ENSFont-${{ needs.resolve-params.outputs.version }}.zip

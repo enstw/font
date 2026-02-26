@@ -1,0 +1,43 @@
+FONTLOG for ENS Font (Elegant Nerd Sino)
+
+This file provides detailed information on the ENS Font Software.
+This information should be distributed along with the ENS Font fonts
+and any derivative works.
+
+---
+
+Basic Font Information
+
+ENS Font is a merged terminal font combining:
+  - LXGW WenKai Mono (CJK base layer, SIL OFL 1.1)
+  - MesloLGM Nerd Font (ASCII/Latin, Apache 2.0; Nerd Fonts PUA icons, MIT)
+
+The merge is automated via GitHub Actions and tracks upstream releases.
+
+Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".
+
+---
+
+Change Log
+
+2026 (v1.0.0) - Initial release
+  - Base: LXGW WenKai Mono v1.521
+  - ASCII/PUA: MesloLGM Nerd Font v3.4.0
+  - Three-layer collision resolution: MesloLGM > Nerd Fonts PUA > LXGW WenKai
+  - OS/2 metrics aligned to MesloLGM for terminal compatibility
+
+---
+
+Acknowledgements
+
+- Xiaocheng Liao (lxgw): LXGW WenKai Mono
+  https://github.com/lxgw/LxgwWenKai
+
+- André Berg: Meslo LG font
+  https://github.com/andreberg/Meslo-Font
+
+- Ryan L McIntyre and Nerd Fonts contributors: Nerd Fonts project
+  https://github.com/ryanoasis/nerd-fonts
+
+- Fontworks Inc.: Klee One (upstream ancestor of LXGW WenKai)
+  https://github.com/fontworks-fonts/Klee
