@@ -182,8 +182,10 @@ def main():
         # is pre-populated but no Release has been published yet.
         current_git_tag = versions["packaging"]["git_tag"]
         own_repo = os.environ.get("GITHUB_REPOSITORY", "")
+        print(f"GITHUB_REPOSITORY={own_repo!r}")
         if own_repo:
             tag_published = release_tag_exists(own_repo, current_git_tag, args.github_token)
+            print(f"Release tag '{current_git_tag}' exists: {tag_published}")
             if not tag_published:
                 print(f"No upstream changes, but Release '{current_git_tag}' not found.")
                 print("Triggering initial build...")
