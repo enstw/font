@@ -2,13 +2,12 @@
 """
 merge.py - Merges LXGWWenKaiMono + MesloLGMNerdFont into ENS Font (Elegant Nerd Sino).
 
-Merge priority (highest to lowest):
-  1. MesloLGM       -> ASCII U+0020-U+007E, basic Latin, box drawing, arrows
-  2. Nerd Fonts     -> PUA ranges (already embedded in MesloLGMNerdFont-*.ttf)
-  3. LXGW WenKai   -> CJK U+4E00-U+9FFF, Hiragana, Katakana, fullwidth, all others
+Merge strategy:
+  Base:   LXGW WenKai Mono  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
+  Donor:  MesloLGMNerdFont  — ASCII, Latin, Box Drawing, PUA icons (Meslo + Nerd Fonts
+          are already bundled together in a single TTF, so no priority resolution needed)
 
-Strategy: Manual glyph transplantation via fonttools (NOT fonttools merge CLI).
-This gives exact control over the three-layer collision resolution.
+All donor codepoints not already present in the base are transplanted in a single pass.
 
 Usage:
     python scripts/merge.py \\
@@ -34,71 +33,6 @@ from fontTools.ttLib.tables import _n_a_m_e
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------------------------
-# Unicode range definitions
-# ---------------------------------------------------------------------------
-
-# Ranges where MesloLGM has absolute priority.
-# These are transplanted LAST (highest priority = last write wins).
-MESLO_PRIORITY_RANGES = [
-    (0x0020, 0x007E),   # Basic ASCII: space through tilde (the sacred monospace zone)
-    (0x00A0, 0x00FF),   # Latin-1 Supplement
-    (0x0100, 0x017F),   # Latin Extended-A
-    (0x0180, 0x024F),   # Latin Extended-B
-    (0x0250, 0x02AF),   # IPA Extensions
-    (0x02B0, 0x02FF),   # Spacing Modifier Letters
-    (0x0300, 0x036F),   # Combining Diacritical Marks
-    (0x0370, 0x03FF),   # Greek and Coptic
-    (0x0400, 0x04FF),   # Cyrillic
-    (0x2000, 0x206F),   # General Punctuation
-    (0x2070, 0x209F),   # Superscripts and Subscripts
-    (0x20A0, 0x20CF),   # Currency Symbols
-    (0x2100, 0x214F),   # Letterlike Symbols
-    (0x2150, 0x218F),   # Number Forms
-    (0x2190, 0x21FF),   # Arrows
-    (0x2200, 0x22FF),   # Mathematical Operators
-    (0x2300, 0x23FF),   # Miscellaneous Technical
-    (0x2400, 0x243F),   # Control Pictures
-    (0x2440, 0x245F),   # Optical Character Recognition
-    (0x2460, 0x24FF),   # Enclosed Alphanumerics
-    (0x2500, 0x257F),   # Box Drawing  <-- CRITICAL for terminal UIs
-    (0x2580, 0x259F),   # Block Elements
-    (0x25A0, 0x25FF),   # Geometric Shapes
-    (0x2600, 0x26FF),   # Miscellaneous Symbols
-    (0x2700, 0x27BF),   # Dingbats
-    (0x27C0, 0x27EF),   # Miscellaneous Mathematical Symbols-A
-    (0x2900, 0x297F),   # Supplemental Arrows-B
-    (0x2B00, 0x2BFF),   # Miscellaneous Symbols and Arrows
-    (0xFB00, 0xFB4F),   # Alphabetic Presentation Forms
-    (0xFE00, 0xFE0F),   # Variation Selectors
-    (0xFE20, 0xFE2F),   # Combining Half Marks
-]
-
-# PUA ranges where Nerd Fonts has priority.
-# These glyphs are already embedded in MesloLGMNerdFont-*.ttf.
-# Transplanted FIRST (second-highest priority).
-NERD_PRIORITY_RANGES = [
-    (0xE000, 0xE00A),   # Custom (weather icons, etc.)
-    (0xE0A0, 0xE0A3),   # Powerline symbols
-    (0xE0B0, 0xE0C8),   # Powerline Extra glyphs
-    (0xE0CA, 0xE0CA),
-    (0xE0CC, 0xE0D7),
-    (0xE200, 0xE2A9),   # Font Awesome Extension
-    (0xE300, 0xE3E3),   # Weather Icons
-    (0xE5FA, 0xE6B7),   # Seti-UI + Custom
-    (0xE700, 0xE7C5),   # Devicons
-    (0xEA60, 0xEBEB),   # Codicons
-    (0xEE00, 0xEEFE),   # nf-md (Material Design Icons condensed)
-    (0xF000, 0xF2FF),   # Font Awesome (classic)
-    (0xF300, 0xF372),   # Font Logos
-    (0xF400, 0xF532),   # Octicons
-    (0xF0000, 0xF1AF0), # Nerd Fonts Supplemental PUA (Plane 15)
-]
-
-
-def codepoint_in_ranges(cp: int, ranges: list) -> bool:
-    return any(lo <= cp <= hi for lo, hi in ranges)
 
 
 def get_best_cmap(font: TTFont) -> dict:
@@ -225,20 +159,17 @@ def glyph_name_for_codepoint(codepoint: int, prefix: str) -> str:
 def transplant_glyphs(
     src_font: TTFont,
     dst_font: TTFont,
-    ranges: list,
     prefix: str,
-    overwrite: bool = True,
 ) -> int:
     """
-    For every codepoint in `ranges` present in src_font's cmap,
-    copy the glyph into dst_font and update dst_font's cmap.
+    Copy every codepoint from src_font into dst_font, overwriting any existing
+    entry. Codepoints present only in dst_font (e.g. WenKai-exclusive CJK) are
+    untouched because they simply don't appear in src_font's cmap.
 
     Args:
-        src_font:  Source font
+        src_font:  Source font (donor)
         dst_font:  Destination font (base, modified in-place)
-        ranges:    List of (lo, hi) Unicode ranges to process
-        prefix:    Glyph name prefix for new glyphs (e.g. "nf_", "mes_")
-        overwrite: If True, overwrite existing cmap entry in dst_font
+        prefix:    Glyph name prefix for transplanted glyphs (e.g. "mes_")
 
     Returns:
         Count of glyphs successfully transplanted.
@@ -246,20 +177,14 @@ def transplant_glyphs(
     src_cmap = get_best_cmap(src_font)
     count = 0
 
-    for lo, hi in ranges:
-        for cp in range(lo, hi + 1):
-            if cp not in src_cmap:
-                continue
-
-            src_glyph_name = src_cmap[cp]
-            dst_glyph_name = glyph_name_for_codepoint(cp, prefix)
-
-            try:
-                copy_glyph(src_font, dst_font, src_glyph_name, dst_glyph_name)
-                update_cmap(dst_font, cp, dst_glyph_name)
-                count += 1
-            except Exception as e:
-                log.warning(f"  Could not copy U+{cp:04X} ({src_glyph_name}): {e}")
+    for cp, src_glyph_name in src_cmap.items():
+        dst_glyph_name = glyph_name_for_codepoint(cp, prefix)
+        try:
+            copy_glyph(src_font, dst_font, src_glyph_name, dst_glyph_name)
+            update_cmap(dst_font, cp, dst_glyph_name)
+            count += 1
+        except Exception as e:
+            log.warning(f"  Could not copy U+{cp:04X} ({src_glyph_name}): {e}")
 
     return count
 
@@ -536,11 +461,11 @@ def merge_fonts(
     nerd_ver: str,
 ) -> None:
     """
-    Main merge function. Executes the three-layer merge strategy:
+    Main merge function.
 
-    Layer 3 (base):    LXGW WenKai Mono  - carries all CJK and fullwidth glyphs
-    Layer 2 (overlay): Nerd Fonts PUA    - transplanted from MesloLGMNerdFont
-    Layer 1 (top):     MesloLGM          - transplanted from MesloLGMNerdFont (same file)
+    Base:  LXGW WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
+    Donor: MesloLGMNerdFont  - ASCII, Latin, Box Drawing, PUA icons
+           (Meslo and Nerd Fonts are pre-bundled; single transplant pass)
 
     Result is renamed to ENS Font for OFL compliance.
     """
@@ -559,29 +484,16 @@ def merge_fonts(
     log.info("Step 1: Ensuring cmap subtable coverage...")
     ensure_cmap_subtables(base)
 
-    # Step 2: Transplant Nerd Fonts PUA glyphs (second-highest priority)
-    # These come first so MesloLGM ASCII can overwrite any PUA-range conflicts
-    log.info("Step 2: Transplanting Nerd Fonts PUA glyphs...")
-    nf_count = transplant_glyphs(
-        src_font=meslo,
-        dst_font=base,
-        ranges=NERD_PRIORITY_RANGES,
-        prefix="nf_",
-        overwrite=True,
-    )
-    log.info(f"  -> {nf_count} Nerd Fonts glyphs transplanted")
-
-    # Step 3: Transplant MesloLGM ASCII/Latin glyphs (highest priority)
-    # This overwrites WenKai's Latin glyphs with Meslo's crisp monospace versions
-    log.info("Step 3: Transplanting MesloLGM ASCII/Latin glyphs (highest priority)...")
+    # Step 2: Transplant all MesloLGMNerdFont glyphs not already in WenKai.
+    # Meslo and Nerd Fonts are pre-bundled in the same TTF; WenKai codepoints
+    # are never overwritten — whatever WenKai has, it keeps.
+    log.info("Step 2: Transplanting MesloLGMNerdFont glyphs (fill gaps only)...")
     meslo_count = transplant_glyphs(
         src_font=meslo,
         dst_font=base,
-        ranges=MESLO_PRIORITY_RANGES,
         prefix="mes_",
-        overwrite=True,
     )
-    log.info(f"  -> {meslo_count} MesloLGM glyphs transplanted")
+    log.info(f"  -> {meslo_count} glyphs transplanted")
 
     # Step 4: Rebuild glyph order for internal consistency
     log.info("Step 4: Rebuilding glyph order...")

@@ -4,7 +4,7 @@
 
 🌐 **官方首頁與載點**：[ens.tw](https://ens.tw/font)
 
-開發者長期在「完美的英文等寬字體」與「優雅不擠壓的中文顯示」之間妥協。ENS Font 不是縫合怪——它是一條生產線：三款字體各就各位，字元衝突由腳本嚴格仲裁，上游一有更新，CI 自動重新建置並發布。
+開發者長期在「完美的英文等寬字體」與「優雅不擠壓的中文顯示」之間妥協。ENS Font 不是縫合怪——它是一條生產線：兩款字體各司其職，上游一有更新，CI 自動重新建置並發布。
 
 **E · N · S** 三個字母定義了這套字體的架構：
 
@@ -14,21 +14,16 @@
 
 ---
 
-## 字元覆寫邏輯
+## 合併邏輯
 
-合併時嚴格執行三層優先權，確保每個字元都在它最擅長的位置：
+以 **LXGW WenKai Mono** 為基底，將 **MesloLGMNerdFont** 的所有字元移植進去：
 
-| 優先順序 | 來源 | 負責範圍 |
-|---------|------|---------|
-| 👑 最高 | **MesloLGM** | ASCII、基本拉丁字元、Box Drawing、箭頭符號 |
-| 🛠️ 次之 | **Nerd Fonts** | Powerline 箭頭、PUA 終端機圖標（U+E000–U+F8FF） |
-| 🌊 基底 | **LXGW WenKai** | CJK、平假名、片假名、全形標點，以及一切前兩者沒有的字元 |
+| 來源 | 負責範圍 |
+|------|---------|
+| **MesloLGMNerdFont**（優先） | 所有 Meslo 有的字元皆覆蓋 WenKai，包含 ASCII、Box Drawing、PUA 圖標 |
+| **LXGW WenKai**（補充） | 僅保留 Meslo 沒有的字元，主要為 CJK、假名、全形標點等 |
 
-實際驗證結果：
-
-- U+E0B0 ▶（Powerline）：WenKai 有佔位字形，但被 Nerd Fonts 正確圖標覆寫 ✓
-- U+2500 ─（Box Drawing）：兩者都有，Meslo 優先，確保等寬對齊 ✓
-- U+4E2D 中（CJK）：僅 WenKai 有，完整保留 ✓
+規則只有一條：**Meslo 有的字以 Meslo 為準，其餘由 WenKai 補足。** MesloLGMNerdFont 本身已將 Meslo 與 Nerd Fonts 打包在一起，合併只需一次 pass，不需要優先權仲裁。
 
 ---
 
