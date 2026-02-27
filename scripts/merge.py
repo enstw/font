@@ -479,6 +479,53 @@ def validate_monospace_integrity(font: TTFont) -> None:
         log.warning("No ASCII glyphs found - cannot verify monospace integrity")
 
 
+def rebuild_vmtx(font: TTFont) -> None:
+    """
+    Rebuild the vmtx table so every glyph in the font has a valid entry.
+
+    After glyph transplantation the glyph count grows but vmtx still holds
+    only the original WenKai entries, making the table corrupt (too short).
+
+    Strategy (matches WenKai's own approach):
+      - advance height = vhea.advanceHeightMax  (uniform for all glyphs)
+      - tsb            = vhea.ascent - glyph.yMax
+                         (0 for composite / empty glyphs)
+    """
+    vhea = font["vhea"]
+    adv_height = vhea.advanceHeightMax
+    vert_ascent = vhea.ascent   # top of the em square in vertical coordinates
+
+    glyf_table = font["glyf"]
+    existing = font["vmtx"].metrics  # dict: glyph_name -> (advanceHeight, tsb)
+
+    glyph_order = font.getGlyphOrder()
+    rebuilt = 0
+    for name in glyph_order:
+        if name in existing:
+            continue  # already has an entry; keep it
+        # Compute tsb from bounding box if glyph has outlines
+        tsb = 0
+        try:
+            g = glyf_table[name]
+            if g.numberOfContours != 0:  # not empty / not composite with no bbox
+                g.recalcBounds(glyf_table)
+                if hasattr(g, "yMax") and g.yMax is not None:
+                    tsb = vert_ascent - g.yMax
+        except Exception:
+            pass
+        existing[name] = (adv_height, tsb)
+        rebuilt += 1
+
+    # numberOfVMetrics=1 means only 1 full entry; the rest repeat the last
+    # advance value.  Set it to total glyph count so every entry is explicit,
+    # which avoids any ambiguity and satisfies macOS validation.
+    vhea.numberOfVMetrics = len(glyph_order)
+    log.info(
+        f"  vmtx rebuilt: {rebuilt} new entries added, "
+        f"total {len(glyph_order)} (advanceHeight={adv_height})"
+    )
+
+
 def merge_fonts(
     wenkai_path: str,
     meslo_path: str,
@@ -555,10 +602,19 @@ def merge_fonts(
     log.info("Step 7: Validating monospace integrity...")
     validate_monospace_integrity(base)
 
-    # Step 9: Save
+    # Step 9: Rebuild vmtx so every glyph has a valid vertical metrics entry.
+    # After transplanting Meslo glyphs the vmtx entry count no longer matches
+    # the enlarged glyph set, causing macOS validation warnings.  We rebuild
+    # the table: advance height = vhea.advanceHeightMax for every glyph,
+    # tsb = vhea.ascent - yMax (0 for glyphs without outlines).
+    if "vmtx" in base and "vhea" in base:
+        log.info("Step 8: Rebuilding vmtx for full glyph coverage...")
+        rebuild_vmtx(base)
+
+    # Step 10: Save
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    log.info(f"Step 8: Saving to {output_path} ...")
+    log.info(f"Step 10: Saving to {output_path} ...")
     base.save(str(output))
 
     size_kb = output.stat().st_size // 1024
