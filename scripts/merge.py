@@ -34,7 +34,6 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 
-
 def get_best_cmap(font: TTFont) -> dict:
     """
     Extract the best available Unicode cmap from a font.
@@ -92,7 +91,9 @@ def ensure_cmap_subtables(font: TTFont) -> None:
         cmap_table.tables.append(sub)
 
 
-def copy_glyph(src_font: TTFont, dst_font: TTFont, src_name: str, dst_name: str) -> None:
+def copy_glyph(
+    src_font: TTFont, dst_font: TTFont, src_name: str, dst_name: str
+) -> None:
     """
     Deep-copy a glyph from src_font into dst_font.
 
@@ -222,6 +223,7 @@ def check_upm_compatibility(base: TTFont, donor: TTFont) -> None:
     )
     try:
         from fontTools.ttLib.scaleUpem import scale_upem
+
         scale_upem(donor, base_upm)
         log.info(f"Donor scaled to {base_upm} UPM successfully")
     except ImportError:
@@ -259,6 +261,7 @@ def set_font_metadata(
       11 URL Vendor
       13 License description
       14 License URL
+      19 Sample text
     """
     name_table = font["name"]
 
@@ -275,8 +278,8 @@ def set_font_metadata(
         "Latin/ASCII glyphs: MesloLGM (c) 2009-2013 Andre Berg, Apache License 2.0\n"
         "PUA icons: Nerd Fonts (c) 2014 Ryan L McIntyre, MIT License\n"
         "Compiled font: (c) 2026 enstw (https://ens.tw/font), SIL OFL 1.1\n"
-        "Reserved Font Names: \"ENS Font\" and \"Elegant Nerd Sino\".\n"
-        "The names \"LXGW\", \"霞鶩\", \"Klee\", and \"Meslo\" are NOT used by this derivative."
+        'Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".\n'
+        'The names "LXGW", "霞鶩", "Klee", and "Meslo" are NOT used by this derivative.'
     )
 
     license_text = (
@@ -286,17 +289,21 @@ def set_font_metadata(
     )
 
     entries = [
-        (0,  copyright_notice),
-        (1,  family_name),
-        (2,  style),
-        (3,  unique_id),
-        (4,  full_name),
-        (5,  version_str),
-        (6,  ps_name),
-        (8,  "enstw"),
+        (0, copyright_notice),
+        (1, family_name),
+        (2, style),
+        (3, unique_id),
+        (4, full_name),
+        (5, version_str),
+        (6, ps_name),
+        (8, "enstw"),
         (11, "https://ens.tw/font"),
         (13, license_text),
         (14, "https://openfontlicense.org"),
+        (
+            19,
+            'ENS:  git status  |   main  ⇡1 ⇣0  ✚2 ~1 -0  |   git commit -m "Hello, 世界"  ✅ ；Elegant Nerd Sino Font：英文、中文、符號都要優雅。',
+        ),
     ]
 
     # Clear name IDs we are replacing
@@ -343,16 +350,16 @@ def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
     ref_hhea = meslo_ref["hhea"]
 
     # Typographic metrics (used by modern apps with USE_TYPO_METRICS)
-    os2.sTypoAscender  = ref_os2.sTypoAscender
+    os2.sTypoAscender = ref_os2.sTypoAscender
     os2.sTypoDescender = ref_os2.sTypoDescender
-    os2.sTypoLineGap   = ref_os2.sTypoLineGap
+    os2.sTypoLineGap = ref_os2.sTypoLineGap
 
     # Win metrics (used by legacy GDI on Windows)
-    os2.usWinAscent  = ref_os2.usWinAscent
+    os2.usWinAscent = ref_os2.usWinAscent
     os2.usWinDescent = ref_os2.usWinDescent
 
     # hhea must match for cross-platform consistency
-    hhea.ascent  = ref_hhea.ascent
+    hhea.ascent = ref_hhea.ascent
     hhea.descent = ref_hhea.descent
     hhea.lineGap = ref_hhea.lineGap
 
@@ -363,7 +370,7 @@ def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
     os2.fsType = 0
 
     # Text metrics from MesloLGM for correct rendering hints
-    os2.sxHeight   = ref_os2.sxHeight
+    os2.sxHeight = ref_os2.sxHeight
     os2.sCapHeight = ref_os2.sCapHeight
 
     # Merge Unicode range bits: OR together both fonts' declared ranges
@@ -399,7 +406,9 @@ def validate_monospace_integrity(font: TTFont) -> None:
             f"advance widths: {sorted(widths)}. Check MesloLGM source integrity."
         )
     elif len(widths) == 1:
-        log.info(f"Monospace integrity OK: all ASCII glyphs width = {widths.pop()} units")
+        log.info(
+            f"Monospace integrity OK: all ASCII glyphs width = {widths.pop()} units"
+        )
     else:
         log.warning("No ASCII glyphs found - cannot verify monospace integrity")
 
@@ -418,7 +427,7 @@ def rebuild_vmtx(font: TTFont) -> None:
     """
     vhea = font["vhea"]
     adv_height = vhea.advanceHeightMax
-    vert_ascent = vhea.ascent   # top of the em square in vertical coordinates
+    vert_ascent = vhea.ascent  # top of the em square in vertical coordinates
 
     glyf_table = font["glyf"]
     existing = font["vmtx"].metrics  # dict: glyph_name -> (advanceHeight, tsb)
@@ -537,15 +546,24 @@ def main():
     parser = argparse.ArgumentParser(
         description="Merge LXGWWenKaiMono + MesloLGMNerdFont into ENS Font"
     )
-    parser.add_argument("--wenkai",       required=True, help="Path to LXGWWenKaiMono-*.ttf")
-    parser.add_argument("--meslo",        required=True, help="Path to MesloLGMNerdFont-*.ttf")
-    parser.add_argument("--output",       required=True, help="Output .ttf path")
-    parser.add_argument("--style",        required=True,
-                        choices=["Regular", "Bold", "Italic", "Bold Italic"],
-                        help="Font style")
-    parser.add_argument("--version",      required=True, help="Packaging version (e.g. 1.0.0)")
-    parser.add_argument("--lxgw-version", required=True, help="LXGW WenKai upstream version")
-    parser.add_argument("--nerd-version", required=True, help="Nerd Fonts upstream version")
+    parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKaiMono-*.ttf")
+    parser.add_argument("--meslo", required=True, help="Path to MesloLGMNerdFont-*.ttf")
+    parser.add_argument("--output", required=True, help="Output .ttf path")
+    parser.add_argument(
+        "--style",
+        required=True,
+        choices=["Regular", "Bold", "Italic", "Bold Italic"],
+        help="Font style",
+    )
+    parser.add_argument(
+        "--version", required=True, help="Packaging version (e.g. 1.0.0)"
+    )
+    parser.add_argument(
+        "--lxgw-version", required=True, help="LXGW WenKai upstream version"
+    )
+    parser.add_argument(
+        "--nerd-version", required=True, help="Nerd Fonts upstream version"
+    )
     args = parser.parse_args()
 
     merge_fonts(
