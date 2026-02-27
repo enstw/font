@@ -282,6 +282,29 @@ jobs:
           cd ..
           ls -lh "ENSFont-${VERSION}.zip"
 
+      - name: Set up Python for release notes
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Generate release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          python scripts/build_release_notes.py \
+            --version  "${{ needs.resolve-params.outputs.version }}" \
+            --lxgw-tag "${{ needs.resolve-params.outputs.lxgw_tag }}" \
+            --nerd-tag "${{ needs.resolve-params.outputs.nerd_tag }}" \
+            --output   /tmp/release_notes.md \
+            --github-token "$GITHUB_TOKEN"
+          echo "--- Release notes preview (first 30 lines) ---"
+          head -30 /tmp/release_notes.md
+
       - name: Create git tag
         env:
           GIT_TAG: ${{ needs.resolve-params.outputs.git_tag }}
@@ -302,42 +325,7 @@ jobs:
           token: ${{ secrets.BOT_PAT }}
           tag_name: ${{ needs.resolve-params.outputs.git_tag }}
           name: "ENS Font v${{ needs.resolve-params.outputs.version }}"
-          body: |
-            ## ENS Font v${{ needs.resolve-params.outputs.version }}
-
-            **Elegant · Nerd · Sino** — A terminal font merging the best of three worlds.
-
-            | Source | Version | Role |
-            |--------|---------|------|
-            | LXGW WenKai Mono | ${{ needs.resolve-params.outputs.lxgw_tag }} | CJK base layer |
-            | MesloLGM Nerd Font | ${{ needs.resolve-params.outputs.nerd_tag }} | ASCII (priority 1) + Nerd Icons (priority 2) |
-
-            ### Character Priority
-            1. **MesloLGM** — ASCII (U+0020–U+007E), Latin, box drawing, arrows
-            2. **Nerd Fonts** — PUA icons (E000–F8FF), Powerline symbols
-            3. **LXGW WenKai** — CJK (U+4E00–U+9FFF), Hiragana, Katakana, fullwidth
-
-            ### Font Files
-            | File | Style |
-            |------|-------|
-            | `ENSFont-Regular.ttf`    | Regular     |
-            | `ENSFont-Bold.ttf`       | Bold        |
-            | `ENSFont-Italic.ttf`     | Italic      |
-            | `ENSFont-BoldItalic.ttf` | Bold Italic |
-
-            Download `ENSFont-${{ needs.resolve-params.outputs.version }}.zip` for all styles at once.
-
-            ### License
-            Released under [SIL OFL 1.1](https://openfontlicense.org).
-            ASCII/Latin glyphs from MesloLGM are used under [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0).
-            PUA icons from Nerd Fonts are used under [MIT License](https://github.com/ryanoasis/nerd-fonts/blob/master/LICENSE).
-
-            Reserved Font Names: **"ENS Font"** and **"Elegant Nerd Sino"**.
-            The names "LXGW", "霞鶩", "Klee", and "Meslo" are **NOT** used by this font.
-
-            ### Upstream References
-            - [LXGW WenKai ${{ needs.resolve-params.outputs.lxgw_tag }}](https://github.com/lxgw/LxgwWenKai/releases/tag/${{ needs.resolve-params.outputs.lxgw_tag }})
-            - [Nerd Fonts ${{ needs.resolve-params.outputs.nerd_tag }}](https://github.com/ryanoasis/nerd-fonts/releases/tag/${{ needs.resolve-params.outputs.nerd_tag }})
+          body_path: /tmp/release_notes.md
           draft: false
           prerelease: false
           files: |
