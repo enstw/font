@@ -30,6 +30,24 @@ from pathlib import Path
 import requests
 
 
+def release_tag_exists(owner_repo: str, tag: str, token: str) -> bool:
+    """
+    Check whether a GitHub Release with the given tag already exists
+    in this repository. Used to detect the first-run case where
+    versions.json is pre-populated but no Release has been published yet.
+    """
+    url = f"https://api.github.com/repos/{owner_repo}/releases/tags/{tag}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    resp = requests.get(url, headers=headers, timeout=30)
+    return resp.status_code == 200
+
+
 def get_latest_release(repo: str, token: str) -> dict:
     """
     Query GitHub API for the latest release of a repository.
@@ -159,6 +177,24 @@ def main():
         print(f"  WARNING: Could not check Nerd Fonts: {e}", file=sys.stderr)
 
     if not changed:
+        # Even if upstream versions match, check whether a Release for the
+        # current git_tag actually exists. On a brand-new repo the versions.json
+        # is pre-populated but no Release has been published yet.
+        current_git_tag = versions["packaging"]["git_tag"]
+        own_repo = os.environ.get("GITHUB_REPOSITORY", "")
+        if own_repo:
+            tag_published = release_tag_exists(own_repo, current_git_tag, args.github_token)
+            if not tag_published:
+                print(f"No upstream changes, but Release '{current_git_tag}' not found.")
+                print("Triggering initial build...")
+                # Re-export current versions as outputs so trigger-build can dispatch
+                set_gha_output("VERSIONS_CHANGED", "true")
+                set_gha_output("NEW_VERSION", current_pkg_ver)
+                set_gha_output("GIT_TAG", current_git_tag)
+                set_gha_output("LXGW_TAG", current_lxgw_tag)
+                set_gha_output("NERD_TAG", current_nerd_tag)
+                sys.exit(1)
+
         print("No upstream changes detected. Build not triggered.")
         set_gha_output("VERSIONS_CHANGED", "false")
         sys.exit(0)
