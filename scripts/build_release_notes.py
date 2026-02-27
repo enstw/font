@@ -43,7 +43,11 @@ def get_release_body(repo: str, tag: str, token: str) -> str:
     try:
         resp = requests.get(url, headers=headers, timeout=30)
         resp.raise_for_status()
-        return resp.json().get("body") or ""
+        body = resp.json().get("body") or ""
+        # Replace '@' with fullwidth '＠' to prevent GitHub from resolving
+        # upstream mentions as contributors to this repo.
+        body = body.replace("@", "＠")
+        return body
     except Exception as e:
         print(f"WARNING: Could not fetch release notes for {repo}@{tag}: {e}", file=sys.stderr)
         return ""
@@ -111,6 +115,9 @@ def build_notes(version: str, lxgw_tag: str, nerd_tag: str,
 
 保留字型名稱：**"ENS Font"** 與 **"Elegant Nerd Sino"**。
 原始保留名稱 "LXGW"、"霞鶩"、"Klee"、"Meslo" 均**未使用**於本衍生字體。
+
+### Contributors
+@enstw · Claude (AI)
 
 ---
 
