@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-merge.py - Merges LXGWWenKaiMono + MesloLGMNerdFont into ENS Font (Elegant Nerd Sino).
+merge.py - Merges LXGWWenKai(*) + MesloLGMNerdFont(*) into ENS Font (Elegant Nerd Sino).
 
 Merge strategy:
-  Base:   LXGW WenKai Mono  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
+  Base:   LXGW WenKai / WenKai Mono  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
   Donor:  MesloLGMNerdFont  — ASCII, Latin, Box Drawing, PUA icons (Meslo + Nerd Fonts
           are already bundled together in a single TTF, so no priority resolution needed)
 
@@ -11,7 +11,7 @@ All donor codepoints not already present in the base are transplanted in a singl
 
 Usage:
     python scripts/merge.py \\
-        --wenkai  fonts/wenkai/LXGWWenKaiMono-Regular.ttf \\
+        --wenkai  fonts/wenkai/LXGWWenKai-Regular.ttf \\
         --meslo   fonts/meslo/MesloLGMNerdFont-Regular.ttf \\
         --output  dist/ENSFont-Regular.ttf \\
         --style   Regular \\
@@ -237,6 +237,8 @@ def check_upm_compatibility(base: TTFont, donor: TTFont) -> None:
 
 def set_font_metadata(
     font: TTFont,
+    family_name: str,
+    ps_family: str,
     style: str,
     version: str,
     lxgw_ver: str,
@@ -265,10 +267,9 @@ def set_font_metadata(
     """
     name_table = font["name"]
 
-    family_name = "ENS Font"
     ps_style = style.replace(" ", "")  # "BoldItalic" etc.
-    full_name = f"ENS Font {style}"
-    ps_name = f"ENSFont-{ps_style}"
+    full_name = f"{family_name} {style}"
+    ps_name = f"{ps_family}-{ps_style}"
     version_str = f"Version {version}; lxgw{lxgw_ver}; nerd{nerd_ver}"
     unique_id = f"{version_str}; {ps_name}"
 
@@ -467,6 +468,8 @@ def merge_fonts(
     wenkai_path: str,
     meslo_path: str,
     output_path: str,
+    family_name: str,
+    ps_family: str,
     style: str,
     version: str,
     lxgw_ver: str,
@@ -475,14 +478,14 @@ def merge_fonts(
     """
     Main merge function.
 
-    Base:  LXGW WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
+    Base:  LXGW WenKai / WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
     Donor: MesloLGMNerdFont  - ASCII, Latin, Box Drawing, PUA icons
            (Meslo and Nerd Fonts are pre-bundled; single transplant pass)
 
     Result is renamed to ENS Font for OFL compliance.
     """
     log.info(f"=== ENS Font Build: {style} ===")
-    log.info(f"Loading LXGW WenKai Mono (base): {wenkai_path}")
+    log.info(f"Loading LXGW WenKai (base): {wenkai_path}")
     base = TTFont(wenkai_path)
 
     log.info(f"Loading MesloLGM Nerd Font (donor): {meslo_path}")
@@ -516,7 +519,7 @@ def merge_fonts(
 
     # Step 6: Set font metadata for OFL compliance
     log.info("Step 5: Setting font metadata (OFL compliance)...")
-    set_font_metadata(base, style, version, lxgw_ver, nerd_ver)
+    set_font_metadata(base, family_name, ps_family, style, version, lxgw_ver, nerd_ver)
 
     # Step 7: Set OS/2 and hhea metrics from MesloLGM reference
     log.info("Step 6: Setting OS/2/hhea metrics from MesloLGM...")
@@ -547,11 +550,21 @@ def merge_fonts(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Merge LXGWWenKaiMono + MesloLGMNerdFont into ENS Font"
+        description="Merge LXGWWenKai(*) + MesloLGMNerdFont(*) into ENS Font"
     )
-    parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKaiMono-*.ttf")
-    parser.add_argument("--meslo", required=True, help="Path to MesloLGMNerdFont-*.ttf")
+    parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKai*.ttf")
+    parser.add_argument("--meslo", required=True, help="Path to MesloLGMNerdFont*.ttf")
     parser.add_argument("--output", required=True, help="Output .ttf path")
+    parser.add_argument(
+        "--family-name",
+        default="ENS Font",
+        help="Name table family name (default: ENS Font)",
+    )
+    parser.add_argument(
+        "--ps-family",
+        default="ENSFont",
+        help="PostScript name prefix (default: ENSFont)",
+    )
     parser.add_argument(
         "--style",
         required=True,
@@ -573,6 +586,8 @@ def main():
         wenkai_path=args.wenkai,
         meslo_path=args.meslo,
         output_path=args.output,
+        family_name=args.family_name,
+        ps_family=args.ps_family,
         style=args.style,
         version=args.version,
         lxgw_ver=args.lxgw_version,

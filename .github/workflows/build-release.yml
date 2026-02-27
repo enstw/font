@@ -6,7 +6,8 @@
 #   - repository_dispatch (event: upstream-updated) from check-upstream.yml
 #   - workflow_dispatch for manual builds
 #
-# Produces four TTF files (Regular, Bold, Italic, Bold Italic) packaged
+# Produces eight TTF files: (Regular, Bold, Italic, Bold Italic) x (Regular, Mono)
+# packaged
 # into a ZIP archive and published as a GitHub Release.
 #
 # Required secrets:
@@ -17,7 +18,7 @@
 #       |
 #   download-fonts
 #       |
-#   build (matrix x4, parallel)
+#   build (matrix x8, parallel)
 #       |
 #   release
 
@@ -52,10 +53,10 @@ jobs:
   resolve-params:
     runs-on: ubuntu-latest
     outputs:
-      git_tag:      ${{ steps.params.outputs.git_tag }}
-      version:      ${{ steps.params.outputs.version }}
-      lxgw_tag:     ${{ steps.params.outputs.lxgw_tag }}
-      nerd_tag:     ${{ steps.params.outputs.nerd_tag }}
+      git_tag: ${{ steps.params.outputs.git_tag }}
+      version: ${{ steps.params.outputs.version }}
+      lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
+      nerd_tag: ${{ steps.params.outputs.nerd_tag }}
       lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
       nerd_changed: ${{ steps.params.outputs.nerd_changed }}
 
@@ -122,9 +123,9 @@ jobs:
           echo "  lxgw_tag     : $LXGW_TAG  (prev: $PREV_LXGW, changed: $LXGW_CHANGED)"
           echo "  nerd_tag     : $NERD_TAG   (prev: $PREV_NERD,  changed: $NERD_CHANGED)"
 
-# ---------------------------------------------------------------------------
-# Job 2: Download upstream font sources
-# ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Job 2: Download upstream font sources
+  # ---------------------------------------------------------------------------
   download-fonts:
     needs: resolve-params
     runs-on: ubuntu-latest
@@ -133,19 +134,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download LXGW WenKai Mono TTF files
+      - name: Download LXGW WenKai / WenKai Mono TTF files
         run: |
           mkdir -p fonts/wenkai
           BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/latest/download"
-          # WenKai Mono v1.521 ships: Regular, Medium, Light (no Bold)
-          # Medium is used as the CJK base for Bold/Bold Italic styles
+          # Both WenKai and WenKai Mono ship Regular/Medium/Light (no Bold).
+          # Medium is used as the CJK base for Bold/Bold Italic styles.
           for VARIANT in Regular Medium Light; do
-            FILE="LXGWWenKaiMono-${VARIANT}.ttf"
-            echo "Downloading $FILE ..."
-            curl -fsSL "${BASE_URL}/${FILE}" -o "fonts/wenkai/${FILE}"
+            for FAMILY in LXGWWenKai LXGWWenKaiMono; do
+              FILE="${FAMILY}-${VARIANT}.ttf"
+              echo "Downloading ${BASE_URL}/${FILE} ..."
+              curl -fsSL "${BASE_URL}/${FILE}" -o "fonts/wenkai/${FILE}"
+            done
           done
           echo "LXGW WenKai downloads:"
           ls -lh fonts/wenkai/
+          test -f fonts/wenkai/LXGWWenKai-Regular.ttf
+          test -f fonts/wenkai/LXGWWenKai-Medium.ttf
+          test -f fonts/wenkai/LXGWWenKaiMono-Regular.ttf
+          test -f fonts/wenkai/LXGWWenKaiMono-Medium.ttf
 
       - name: Download Nerd Fonts Meslo archive
         run: |
@@ -157,7 +164,15 @@ jobs:
           echo "Extracting Meslo fonts ..."
           tar -xJf "/tmp/${ARCHIVE}" -C fonts/meslo/
           echo "MesloLGM fonts found:"
-          ls fonts/meslo/MesloLGMNerdFont-*.ttf
+          ls fonts/meslo/MesloLGMNerdFont*.ttf
+          test -f fonts/meslo/MesloLGMNerdFont-Regular.ttf
+          test -f fonts/meslo/MesloLGMNerdFont-Bold.ttf
+          test -f fonts/meslo/MesloLGMNerdFont-Italic.ttf
+          test -f fonts/meslo/MesloLGMNerdFont-BoldItalic.ttf
+          test -f fonts/meslo/MesloLGMNerdFontMono-Regular.ttf
+          test -f fonts/meslo/MesloLGMNerdFontMono-Bold.ttf
+          test -f fonts/meslo/MesloLGMNerdFontMono-Italic.ttf
+          test -f fonts/meslo/MesloLGMNerdFontMono-BoldItalic.ttf
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v4
@@ -166,39 +181,78 @@ jobs:
           path: fonts/
           retention-days: 1
 
-# ---------------------------------------------------------------------------
-# Job 3: Build merged fonts (4-way matrix, runs in parallel)
-# ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Job 3: Build merged fonts (8-way matrix, runs in parallel)
+  # ---------------------------------------------------------------------------
   build:
     needs: [resolve-params, download-fonts]
     runs-on: ubuntu-latest
 
     strategy:
-      fail-fast: false   # Build all styles even if one fails
+      fail-fast: false # Build all styles even if one fails
       matrix:
         include:
-          - style:       Regular
-            wenkai_file: LXGWWenKaiMono-Regular.ttf
-            meslo_file:  MesloLGMNerdFont-Regular.ttf
+          - style: Regular
+            wenkai_file: LXGWWenKai-Regular.ttf
+            meslo_file: MesloLGMNerdFont-Regular.ttf
             output_file: ENSFont-Regular.ttf
+            family_name: ENS Font
+            ps_family: ENSFont
 
-          - style:       Bold
+          - style: Regular
+            wenkai_file: LXGWWenKaiMono-Regular.ttf
+            meslo_file: MesloLGMNerdFontMono-Regular.ttf
+            output_file: ENSFontMono-Regular.ttf
+            family_name: ENS Font Mono
+            ps_family: ENSFontMono
+
+          - style: Bold
+            # WenKai has no Bold; Medium is the closest weight
+            wenkai_file: LXGWWenKai-Medium.ttf
+            meslo_file: MesloLGMNerdFont-Bold.ttf
+            output_file: ENSFont-Bold.ttf
+            family_name: ENS Font
+            ps_family: ENSFont
+
+          - style: Bold
             # WenKai has no Bold; Medium is the closest weight
             wenkai_file: LXGWWenKaiMono-Medium.ttf
-            meslo_file:  MesloLGMNerdFont-Bold.ttf
-            output_file: ENSFont-Bold.ttf
+            meslo_file: MesloLGMNerdFontMono-Bold.ttf
+            output_file: ENSFontMono-Bold.ttf
+            family_name: ENS Font Mono
+            ps_family: ENSFontMono
 
-          - style:       Italic
+          - style: Italic
+            # WenKai has no italic; Regular used as CJK base
+            wenkai_file: LXGWWenKai-Regular.ttf
+            meslo_file: MesloLGMNerdFont-Italic.ttf
+            output_file: ENSFont-Italic.ttf
+            family_name: ENS Font
+            ps_family: ENSFont
+
+          - style: Italic
             # WenKai has no italic; Regular used as CJK base
             wenkai_file: LXGWWenKaiMono-Regular.ttf
-            meslo_file:  MesloLGMNerdFont-Italic.ttf
-            output_file: ENSFont-Italic.ttf
+            meslo_file: MesloLGMNerdFontMono-Italic.ttf
+            output_file: ENSFontMono-Italic.ttf
+            family_name: ENS Font Mono
+            ps_family: ENSFontMono
 
-          - style:       Bold Italic
+          - style: Bold Italic
+            # WenKai has no Bold Italic; Medium used as CJK base
+            wenkai_file: LXGWWenKai-Medium.ttf
+            meslo_file: MesloLGMNerdFont-BoldItalic.ttf
+            output_file: ENSFont-BoldItalic.ttf
+            family_name: ENS Font
+            ps_family: ENSFont
+
+          - style: Bold Italic
             # WenKai has no Bold Italic; Medium used as CJK base
             wenkai_file: LXGWWenKaiMono-Medium.ttf
-            meslo_file:  MesloLGMNerdFont-BoldItalic.ttf
-            output_file: ENSFont-BoldItalic.ttf
+            meslo_file: MesloLGMNerdFontMono-BoldItalic.ttf
+            output_file: ENSFontMono-BoldItalic.ttf
+            family_name: ENS Font Mono
+            ps_family: ENSFontMono
 
     steps:
       - name: Checkout repository
@@ -222,9 +276,9 @@ jobs:
 
       - name: Build ${{ matrix.style }}
         env:
-          VERSION:  ${{ needs.resolve-params.outputs.version }}
+          VERSION: ${{ needs.resolve-params.outputs.version }}
           LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
-          NERD_TAG:  ${{ needs.resolve-params.outputs.nerd_tag }}
+          NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
           mkdir -p dist
 
@@ -235,6 +289,8 @@ jobs:
             --wenkai  "fonts/wenkai/${{ matrix.wenkai_file }}" \
             --meslo   "fonts/meslo/${{ matrix.meslo_file }}" \
             --output  "dist/${{ matrix.output_file }}" \
+            --family-name "${{ matrix.family_name }}" \
+            --ps-family "${{ matrix.ps_family }}" \
             --style   "${{ matrix.style }}" \
             --version "$VERSION" \
             --lxgw-version "$LXGW_VER" \
@@ -275,13 +331,13 @@ jobs:
       - name: Upload built font
         uses: actions/upload-artifact@v4
         with:
-          name: font-${{ matrix.style }}
+          name: font-${{ matrix.output_file }}
           path: dist/${{ matrix.output_file }}
           retention-days: 1
 
-# ---------------------------------------------------------------------------
-# Job 4: Assemble and publish GitHub Release
-# ---------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
+  # Job 4: Assemble and publish GitHub Release
+  # ---------------------------------------------------------------------------
   release:
     needs: [resolve-params, build]
     runs-on: ubuntu-latest
@@ -361,7 +417,11 @@ jobs:
           prerelease: false
           files: |
             dist/ENSFont-Regular.ttf
+            dist/ENSFontMono-Regular.ttf
             dist/ENSFont-Bold.ttf
+            dist/ENSFontMono-Bold.ttf
             dist/ENSFont-Italic.ttf
+            dist/ENSFontMono-Italic.ttf
             dist/ENSFont-BoldItalic.ttf
+            dist/ENSFontMono-BoldItalic.ttf
             ENSFont-${{ needs.resolve-params.outputs.version }}.zip

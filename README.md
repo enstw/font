@@ -16,7 +16,7 @@
 
 ## 合併邏輯
 
-以 **LXGW WenKai Mono** 為基底，將 **MesloLGMNerdFont** 的所有字元移植進去：
+以 **LXGW WenKai / LXGW WenKai Mono** 為基底，將 **MesloLGMNerdFont** 系列字元移植進去：
 
 | 來源 | 負責範圍 |
 |------|---------|
@@ -25,18 +25,29 @@
 
 規則只有一條：**Meslo 有的字以 Meslo 為準，其餘由 WenKai 補足。** MesloLGMNerdFont 本身已將 Meslo 與 Nerd Fonts 打包在一起，合併只需一次 pass，不需要優先權仲裁。
 
+目前產物對應如下：
+
+| 產物 | CJK 基底 | ASCII / 圖標來源 |
+|------|---------|------------------|
+| ENS Font | LXGW WenKai | MesloLGMNerdFont |
+| ENS Font Mono | LXGW WenKai Mono | MesloLGMNerdFontMono |
+
 ---
 
 ## 字重說明
 
-LXGW WenKai Mono 提供 Regular / Medium / Light 三種字重（無 Bold）。ENS Font 對應如下：
+LXGW WenKai / LXGW WenKai Mono 皆提供 Regular / Medium / Light 三種字重（無 Bold）。ENS Font 與 ENS Font Mono 對應如下：
 
-| ENS Font 字重 | WenKai CJK 來源 | Meslo ASCII 來源 |
-|-------------|--------------|---------------|
-| Regular     | Regular      | Regular       |
-| Bold        | Medium（最接近）| Bold          |
-| Italic      | Regular      | Italic        |
-| Bold Italic | Medium       | Bold Italic   |
+| 產物 | 字重 | WenKai CJK 來源 | Meslo ASCII 來源 |
+|------|------|----------------|------------------|
+| ENS Font | Regular | Regular | MesloLGMNerdFont-Regular |
+| ENS Font | Bold | Medium（最接近） | MesloLGMNerdFont-Bold |
+| ENS Font | Italic | Regular | MesloLGMNerdFont-Italic |
+| ENS Font | Bold Italic | Medium | MesloLGMNerdFont-BoldItalic |
+| ENS Font Mono | Regular | Regular | MesloLGMNerdFontMono-Regular |
+| ENS Font Mono | Bold | Medium（最接近） | MesloLGMNerdFontMono-Bold |
+| ENS Font Mono | Italic | Regular | MesloLGMNerdFontMono-Italic |
+| ENS Font Mono | Bold Italic | Medium | MesloLGMNerdFontMono-BoldItalic |
 
 ---
 
@@ -47,7 +58,7 @@ LXGW WenKai Mono 提供 Regular / Medium / Light 三種字重（無 Bold）。EN
 1. 前往 [Releases 頁面](../../releases)
 2. 下載最新版本的 `ENSFont-{version}.zip`
 3. 解壓縮，全選字體檔案安裝至系統
-4. 在終端機或編輯器中將字體設為 `ENS Font`
+4. 在終端機或編輯器中將字體設為 `ENS Font`（或 `ENS Font Mono`）
 
 **iTerm2**：Preferences → Profiles → Text → Font → 選擇 `ENS Font`
 
@@ -76,7 +87,7 @@ LXGW WenKai Mono 提供 Regular / Medium / Light 三種字重（無 Bold）。EN
             ├── 查詢 ryanoasis/nerd-fonts 最新 release
             └── 若有更新 → 觸發 build-release.yml
                     ├── 下載最新上游字體
-                    ├── 執行合併腳本（4 種字重並行）
+                    ├── 執行合併腳本（8 個產物並行）
                     ├── OFL 合規自動驗證
                     └── 發布新版 GitHub Release
 ```
@@ -95,14 +106,14 @@ pip install -r scripts/requirements.txt
 
 # 下載上游字體
 mkdir -p fonts/wenkai fonts/meslo
-curl -fL "https://github.com/lxgw/LxgwWenKai/releases/latest/download/LXGWWenKaiMono-Regular.ttf" \
-     -o fonts/wenkai/LXGWWenKaiMono-Regular.ttf
+curl -fL "https://github.com/lxgw/LxgwWenKai/releases/latest/download/LXGWWenKai-Regular.ttf" \
+     -o fonts/wenkai/LXGWWenKai-Regular.ttf
 curl -fL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.tar.xz" \
      -o /tmp/Meslo.tar.xz && tar -xJf /tmp/Meslo.tar.xz -C fonts/meslo/
 
 # 合併
 python scripts/merge.py \
-  --wenkai  fonts/wenkai/LXGWWenKaiMono-Regular.ttf \
+  --wenkai  fonts/wenkai/LXGWWenKai-Regular.ttf \
   --meslo   fonts/meslo/MesloLGMNerdFont-Regular.ttf \
   --output  dist/ENSFont-Regular.ttf \
   --style   Regular \
@@ -119,7 +130,7 @@ ENS Font 的最終輸出字體以 **SIL Open Font License 1.1** 發布。
 
 | 來源 | 授權 | 用途 |
 |------|------|------|
-| [LXGW WenKai Mono](https://github.com/lxgw/LxgwWenKai) | SIL OFL 1.1 | CJK 字元基底 |
+| [LXGW WenKai / LXGW WenKai Mono](https://github.com/lxgw/LxgwWenKai) | SIL OFL 1.1 | CJK 字元基底 |
 | [MesloLGM](https://github.com/andreberg/Meslo-Font) | Apache 2.0 | ASCII / 拉丁字元 |
 | [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) | MIT | PUA 終端機圖標 |
 

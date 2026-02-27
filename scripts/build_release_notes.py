@@ -49,7 +49,10 @@ def get_release_body(repo: str, tag: str, token: str) -> str:
         body = body.replace("@", "＠")
         return body
     except Exception as e:
-        print(f"WARNING: Could not fetch release notes for {repo}@{tag}: {e}", file=sys.stderr)
+        print(
+            f"WARNING: Could not fetch release notes for {repo}@{tag}: {e}",
+            file=sys.stderr,
+        )
         return ""
 
 
@@ -65,20 +68,34 @@ def truncate_body(body: str, max_lines: int = 50) -> str:
     return truncated + f"\n\n_...（完整內容請見上游 Release 頁面）_"
 
 
-def build_notes(version: str, lxgw_tag: str, nerd_tag: str,
-                lxgw_body: str, nerd_body: str,
-                lxgw_changed: bool = True, nerd_changed: bool = True) -> str:
+def build_notes(
+    version: str,
+    lxgw_tag: str,
+    nerd_tag: str,
+    lxgw_body: str,
+    nerd_body: str,
+    lxgw_changed: bool = True,
+    nerd_changed: bool = True,
+) -> str:
 
     lxgw_url = f"https://github.com/lxgw/LxgwWenKai/releases/tag/{lxgw_tag}"
-    nerd_url  = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
+    nerd_url = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
 
     if lxgw_changed:
-        lxgw_section = truncate_body(lxgw_body.strip()) if lxgw_body.strip() else "_（無變更記錄）_"
+        lxgw_section = (
+            truncate_body(lxgw_body.strip())
+            if lxgw_body.strip()
+            else "_（無變更記錄）_"
+        )
     else:
         lxgw_section = "_（此版本無變更）_"
 
     if nerd_changed:
-        nerd_section = truncate_body(nerd_body.strip()) if nerd_body.strip() else "_（無變更記錄）_"
+        nerd_section = (
+            truncate_body(nerd_body.strip())
+            if nerd_body.strip()
+            else "_（無變更記錄）_"
+        )
     else:
         nerd_section = "_（此版本無變更）_"
 
@@ -89,22 +106,28 @@ def build_notes(version: str, lxgw_tag: str, nerd_tag: str,
 
 | 來源 | 版本 | 用途 |
 |------|------|------|
-| LXGW WenKai Mono | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
-| MesloLGM Nerd Font | [{nerd_tag}]({nerd_url}) | ASCII 優先 + Nerd 圖標 |
+| LXGW WenKai / LXGW WenKai Mono | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
+| MesloLGM Nerd Font / Mono | [{nerd_tag}]({nerd_url}) | ASCII 優先 + Nerd 圖標 |
 
 ### 字元優先權
 1. **MesloLGM** — ASCII (U+0020–U+007E)、拉丁字元、Box Drawing、箭頭
 2. **Nerd Fonts** — PUA 圖標 (E000–F8FF)、Powerline 符號
 3. **LXGW WenKai** — CJK (U+4E00–U+9FFF)、平假名、片假名、全形標點
 
+> 對應規則：`ENS Font = LXGW WenKai + MesloLGMNerdFont`，`ENS Font Mono = LXGW WenKai Mono + MesloLGMNerdFontMono`。
+
 ### 字體檔案
 
 | 檔案 | 字重 |
 |------|------|
-| `ENSFont-Regular.ttf`    | Regular     |
-| `ENSFont-Bold.ttf`       | Bold        |
-| `ENSFont-Italic.ttf`     | Italic      |
-| `ENSFont-BoldItalic.ttf` | Bold Italic |
+| `ENSFont-Regular.ttf`          | Regular           |
+| `ENSFont-Bold.ttf`             | Bold              |
+| `ENSFont-Italic.ttf`           | Italic            |
+| `ENSFont-BoldItalic.ttf`       | Bold Italic       |
+| `ENSFontMono-Regular.ttf`      | Regular Mono      |
+| `ENSFontMono-Bold.ttf`         | Bold Mono         |
+| `ENSFontMono-Italic.ttf`       | Italic Mono       |
+| `ENSFontMono-BoldItalic.ttf`   | Bold Italic Mono  |
 
 下載 `ENSFont-{version}.zip` 取得所有字重。
 
@@ -123,7 +146,7 @@ def build_notes(version: str, lxgw_tag: str, nerd_tag: str,
 
 ## 上游變更記錄
 
-### LXGW WenKai Mono {lxgw_tag}
+### LXGW WenKai {lxgw_tag}
 
 {lxgw_section}
 
@@ -145,32 +168,53 @@ def parse_bool(value: str) -> bool:
 
 def main():
     parser = argparse.ArgumentParser(description="Build ENS Font GitHub Release notes")
-    parser.add_argument("--version",       required=True, help="ENS Font packaging version (e.g. 1.0.0)")
-    parser.add_argument("--lxgw-tag",      required=True, help="LXGW WenKai release tag (e.g. v1.521)")
-    parser.add_argument("--nerd-tag",      required=True, help="Nerd Fonts release tag (e.g. v3.4.0)")
-    parser.add_argument("--lxgw-changed",  default="true",
-                        help="Include LXGW WenKai changelog (true/false, default: true)")
-    parser.add_argument("--nerd-changed",  default="true",
-                        help="Include Nerd Fonts changelog (true/false, default: true)")
-    parser.add_argument("--output",        required=True, help="Output file path for release notes Markdown")
-    parser.add_argument("--github-token",  default=os.environ.get("GITHUB_TOKEN", ""),
-                        help="GitHub API token (or set GITHUB_TOKEN env var)")
+    parser.add_argument(
+        "--version", required=True, help="ENS Font packaging version (e.g. 1.0.0)"
+    )
+    parser.add_argument(
+        "--lxgw-tag", required=True, help="LXGW WenKai release tag (e.g. v1.521)"
+    )
+    parser.add_argument(
+        "--nerd-tag", required=True, help="Nerd Fonts release tag (e.g. v3.4.0)"
+    )
+    parser.add_argument(
+        "--lxgw-changed",
+        default="true",
+        help="Include LXGW WenKai changelog (true/false, default: true)",
+    )
+    parser.add_argument(
+        "--nerd-changed",
+        default="true",
+        help="Include Nerd Fonts changelog (true/false, default: true)",
+    )
+    parser.add_argument(
+        "--output", required=True, help="Output file path for release notes Markdown"
+    )
+    parser.add_argument(
+        "--github-token",
+        default=os.environ.get("GITHUB_TOKEN", ""),
+        help="GitHub API token (or set GITHUB_TOKEN env var)",
+    )
     args = parser.parse_args()
 
     lxgw_changed = parse_bool(args.lxgw_changed)
-    nerd_changed  = parse_bool(args.nerd_changed)
+    nerd_changed = parse_bool(args.nerd_changed)
 
     lxgw_body = ""
     if lxgw_changed:
         print(f"Fetching LXGW WenKai changelog for {args.lxgw_tag}...")
-        lxgw_body = get_release_body("lxgw/LxgwWenKai", args.lxgw_tag, args.github_token)
+        lxgw_body = get_release_body(
+            "lxgw/LxgwWenKai", args.lxgw_tag, args.github_token
+        )
     else:
         print(f"LXGW WenKai {args.lxgw_tag}: no change, skipping fetch.")
 
     nerd_body = ""
     if nerd_changed:
         print(f"Fetching Nerd Fonts changelog for {args.nerd_tag}...")
-        nerd_body = get_release_body("ryanoasis/nerd-fonts", args.nerd_tag, args.github_token)
+        nerd_body = get_release_body(
+            "ryanoasis/nerd-fonts", args.nerd_tag, args.github_token
+        )
     else:
         print(f"Nerd Fonts {args.nerd_tag}: no change, skipping fetch.")
 
