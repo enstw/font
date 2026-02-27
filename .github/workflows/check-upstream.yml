@@ -38,6 +38,8 @@ jobs:
       git_tag:          ${{ steps.check.outputs.GIT_TAG }}
       lxgw_tag:         ${{ steps.check.outputs.LXGW_TAG }}
       nerd_tag:         ${{ steps.check.outputs.NERD_TAG }}
+      prev_lxgw_tag:    ${{ steps.check.outputs.PREV_LXGW_TAG }}
+      prev_nerd_tag:    ${{ steps.check.outputs.PREV_NERD_TAG }}
 
     steps:
       - name: Checkout repository
@@ -109,6 +111,8 @@ jobs:
           LXGW_TAG="${{ needs.check-versions.outputs.lxgw_tag }}"
           NERD_TAG="${{ needs.check-versions.outputs.nerd_tag }}"
           VERSION="${{ needs.check-versions.outputs.new_version }}"
+          PREV_LXGW_TAG="${{ needs.check-versions.outputs.prev_lxgw_tag }}"
+          PREV_NERD_TAG="${{ needs.check-versions.outputs.prev_nerd_tag }}"
 
           if [ -z "$GIT_TAG" ]; then
             GIT_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['git_tag'])")
@@ -122,22 +126,33 @@ jobs:
           if [ -z "$VERSION" ]; then
             VERSION=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['version'])")
           fi
+          # force_build / first-run: prev tags are empty → build-release will treat both as changed
+          if [ -z "$PREV_LXGW_TAG" ]; then
+            PREV_LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_lxgw_tag', ''))")
+          fi
+          if [ -z "$PREV_NERD_TAG" ]; then
+            PREV_NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_nerd_tag', ''))")
+          fi
 
-          echo "git_tag=$GIT_TAG"   >> "$GITHUB_OUTPUT"
-          echo "lxgw_tag=$LXGW_TAG" >> "$GITHUB_OUTPUT"
-          echo "nerd_tag=$NERD_TAG"  >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION"    >> "$GITHUB_OUTPUT"
-          echo "Dispatching: git_tag=$GIT_TAG lxgw=$LXGW_TAG nerd=$NERD_TAG"
+          echo "git_tag=$GIT_TAG"           >> "$GITHUB_OUTPUT"
+          echo "lxgw_tag=$LXGW_TAG"         >> "$GITHUB_OUTPUT"
+          echo "nerd_tag=$NERD_TAG"          >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"            >> "$GITHUB_OUTPUT"
+          echo "prev_lxgw_tag=$PREV_LXGW_TAG" >> "$GITHUB_OUTPUT"
+          echo "prev_nerd_tag=$PREV_NERD_TAG"  >> "$GITHUB_OUTPUT"
+          echo "Dispatching: git_tag=$GIT_TAG lxgw=$LXGW_TAG nerd=$NERD_TAG (prev: lxgw=$PREV_LXGW_TAG nerd=$PREV_NERD_TAG)"
 
       - name: Dispatch build-release workflow
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
           script: |
-            const git_tag  = "${{ steps.resolve.outputs.git_tag }}";
-            const version  = "${{ steps.resolve.outputs.version }}";
-            const lxgw_tag = "${{ steps.resolve.outputs.lxgw_tag }}";
-            const nerd_tag = "${{ steps.resolve.outputs.nerd_tag }}";
+            const git_tag      = "${{ steps.resolve.outputs.git_tag }}";
+            const version      = "${{ steps.resolve.outputs.version }}";
+            const lxgw_tag     = "${{ steps.resolve.outputs.lxgw_tag }}";
+            const nerd_tag     = "${{ steps.resolve.outputs.nerd_tag }}";
+            const prev_lxgw_tag = "${{ steps.resolve.outputs.prev_lxgw_tag }}";
+            const prev_nerd_tag = "${{ steps.resolve.outputs.prev_nerd_tag }}";
 
             console.log(`Dispatching build for tag: ${git_tag}`);
 
@@ -145,7 +160,7 @@ jobs:
               owner: context.repo.owner,
               repo:  context.repo.repo,
               event_type: "upstream-updated",
-              client_payload: { git_tag, version, lxgw_tag, nerd_tag }
+              client_payload: { git_tag, version, lxgw_tag, nerd_tag, prev_lxgw_tag, prev_nerd_tag }
             });
 
             console.log("Build dispatch sent successfully.");

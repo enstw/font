@@ -187,12 +187,15 @@ def main():
             if not tag_published:
                 print(f"No upstream changes, but Release '{current_git_tag}' not found.")
                 print("Triggering initial build...")
-                # Re-export current versions as outputs so trigger-build can dispatch
+                # Re-export current versions as outputs so trigger-build can dispatch.
+                # prev_* are set to empty so build-release treats both as changed.
                 set_gha_output("VERSIONS_CHANGED", "true")
                 set_gha_output("NEW_VERSION", current_pkg_ver)
                 set_gha_output("GIT_TAG", current_git_tag)
                 set_gha_output("LXGW_TAG", current_lxgw_tag)
                 set_gha_output("NERD_TAG", current_nerd_tag)
+                set_gha_output("PREV_LXGW_TAG", "")
+                set_gha_output("PREV_NERD_TAG", "")
                 sys.exit(1)
 
         print("No upstream changes detected. Build not triggered.")
@@ -208,6 +211,10 @@ def main():
     print(f"Packaging version: {current_pkg_ver} -> {new_pkg_ver}")
     print(f"New git tag:       {new_git_tag}")
 
+    # Persist previous upstream tags so build-release.yml can detect which
+    # upstream actually changed without having to parse the git tag string.
+    versions["packaging"]["prev_lxgw_tag"] = current_lxgw_tag
+    versions["packaging"]["prev_nerd_tag"] = current_nerd_tag
     versions["packaging"]["version"]   = new_pkg_ver
     versions["packaging"]["last_built"] = datetime.now(timezone.utc).isoformat()
     versions["packaging"]["git_tag"]   = new_git_tag
@@ -227,6 +234,8 @@ def main():
     set_gha_output("GIT_TAG", new_git_tag)
     set_gha_output("LXGW_TAG", new_lxgw)
     set_gha_output("NERD_TAG", new_nerd)
+    set_gha_output("PREV_LXGW_TAG", current_lxgw_tag)
+    set_gha_output("PREV_NERD_TAG", current_nerd_tag)
 
     sys.exit(1)  # Exit code 1 = changes found = trigger build workflow
 
