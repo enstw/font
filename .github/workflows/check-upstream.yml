@@ -95,21 +95,49 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Read versions.json for current tags (force_build fallback)
-        id: read-versions
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.BOT_PAT }}
+
+      - name: Resolve dispatch parameters
+        id: resolve
+        run: |
+          # Prefer outputs from check-versions job (normal flow).
+          # Fall back to versions.json when force_build triggers with no detected changes.
+          GIT_TAG="${{ needs.check-versions.outputs.git_tag }}"
+          LXGW_TAG="${{ needs.check-versions.outputs.lxgw_tag }}"
+          NERD_TAG="${{ needs.check-versions.outputs.nerd_tag }}"
+          VERSION="${{ needs.check-versions.outputs.new_version }}"
+
+          if [ -z "$GIT_TAG" ]; then
+            GIT_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['git_tag'])")
+          fi
+          if [ -z "$LXGW_TAG" ]; then
+            LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['lxgw_wenkai']['tag'])")
+          fi
+          if [ -z "$NERD_TAG" ]; then
+            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['meslo_nerd']['tag'])")
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['version'])")
+          fi
+
+          echo "git_tag=$GIT_TAG"   >> "$GITHUB_OUTPUT"
+          echo "lxgw_tag=$LXGW_TAG" >> "$GITHUB_OUTPUT"
+          echo "nerd_tag=$NERD_TAG"  >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"    >> "$GITHUB_OUTPUT"
+          echo "Dispatching: git_tag=$GIT_TAG lxgw=$LXGW_TAG nerd=$NERD_TAG"
 
       - name: Dispatch build-release workflow
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.BOT_PAT }}
           script: |
-            const git_tag   = "${{ needs.check-versions.outputs.git_tag }}";
-            const version   = "${{ needs.check-versions.outputs.new_version }}";
-            const lxgw_tag  = "${{ needs.check-versions.outputs.lxgw_tag }}";
-            const nerd_tag  = "${{ needs.check-versions.outputs.nerd_tag }}";
+            const git_tag  = "${{ steps.resolve.outputs.git_tag }}";
+            const version  = "${{ steps.resolve.outputs.version }}";
+            const lxgw_tag = "${{ steps.resolve.outputs.lxgw_tag }}";
+            const nerd_tag = "${{ steps.resolve.outputs.nerd_tag }}";
 
             console.log(`Dispatching build for tag: ${git_tag}`);
 
