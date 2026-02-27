@@ -5,12 +5,17 @@ build_release_notes.py - Assembles the GitHub Release body for ENS Font.
 Fetches upstream changelogs from LXGW WenKai and Nerd Fonts releases,
 then combines them with ENS Font metadata into a single Markdown document.
 
+Use --lxgw-changed / --nerd-changed to control which upstream changelogs
+are included.  If both are omitted (or both false), both are included.
+
 Usage:
     python scripts/build_release_notes.py \\
-        --version    1.0.0 \\
-        --lxgw-tag   v1.521 \\
-        --nerd-tag   v3.4.0 \\
-        --output     /tmp/release_notes.md \\
+        --version      1.0.0 \\
+        --lxgw-tag     v1.521 \\
+        --nerd-tag     v3.4.0 \\
+        --lxgw-changed true \\
+        --nerd-changed false \\
+        --output       /tmp/release_notes.md \\
         --github-token $GITHUB_TOKEN
 """
 
@@ -57,13 +62,21 @@ def truncate_body(body: str, max_lines: int = 50) -> str:
 
 
 def build_notes(version: str, lxgw_tag: str, nerd_tag: str,
-                lxgw_body: str, nerd_body: str) -> str:
+                lxgw_body: str, nerd_body: str,
+                lxgw_changed: bool = True, nerd_changed: bool = True) -> str:
 
     lxgw_url = f"https://github.com/lxgw/LxgwWenKai/releases/tag/{lxgw_tag}"
     nerd_url  = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
 
-    lxgw_section = truncate_body(lxgw_body.strip()) if lxgw_body.strip() else "_（無變更記錄）_"
-    nerd_section  = truncate_body(nerd_body.strip())  if nerd_body.strip()  else "_（無變更記錄）_"
+    if lxgw_changed:
+        lxgw_section = truncate_body(lxgw_body.strip()) if lxgw_body.strip() else "_（無變更記錄）_"
+    else:
+        lxgw_section = "_（此版本無變更）_"
+
+    if nerd_changed:
+        nerd_section = truncate_body(nerd_body.strip()) if nerd_body.strip() else "_（無變更記錄）_"
+    else:
+        nerd_section = "_（此版本無變更）_"
 
     return f"""\
 ## ENS Font v{version}
@@ -119,21 +132,40 @@ def build_notes(version: str, lxgw_tag: str, nerd_tag: str,
 """
 
 
+def parse_bool(value: str) -> bool:
+    return value.lower() in ("true", "1", "yes")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Build ENS Font GitHub Release notes")
     parser.add_argument("--version",       required=True, help="ENS Font packaging version (e.g. 1.0.0)")
     parser.add_argument("--lxgw-tag",      required=True, help="LXGW WenKai release tag (e.g. v1.521)")
     parser.add_argument("--nerd-tag",      required=True, help="Nerd Fonts release tag (e.g. v3.4.0)")
+    parser.add_argument("--lxgw-changed",  default="true",
+                        help="Include LXGW WenKai changelog (true/false, default: true)")
+    parser.add_argument("--nerd-changed",  default="true",
+                        help="Include Nerd Fonts changelog (true/false, default: true)")
     parser.add_argument("--output",        required=True, help="Output file path for release notes Markdown")
     parser.add_argument("--github-token",  default=os.environ.get("GITHUB_TOKEN", ""),
                         help="GitHub API token (or set GITHUB_TOKEN env var)")
     args = parser.parse_args()
 
-    print(f"Fetching LXGW WenKai changelog for {args.lxgw_tag}...")
-    lxgw_body = get_release_body("lxgw/LxgwWenKai", args.lxgw_tag, args.github_token)
+    lxgw_changed = parse_bool(args.lxgw_changed)
+    nerd_changed  = parse_bool(args.nerd_changed)
 
-    print(f"Fetching Nerd Fonts changelog for {args.nerd_tag}...")
-    nerd_body = get_release_body("ryanoasis/nerd-fonts", args.nerd_tag, args.github_token)
+    lxgw_body = ""
+    if lxgw_changed:
+        print(f"Fetching LXGW WenKai changelog for {args.lxgw_tag}...")
+        lxgw_body = get_release_body("lxgw/LxgwWenKai", args.lxgw_tag, args.github_token)
+    else:
+        print(f"LXGW WenKai {args.lxgw_tag}: no change, skipping fetch.")
+
+    nerd_body = ""
+    if nerd_changed:
+        print(f"Fetching Nerd Fonts changelog for {args.nerd_tag}...")
+        nerd_body = get_release_body("ryanoasis/nerd-fonts", args.nerd_tag, args.github_token)
+    else:
+        print(f"Nerd Fonts {args.nerd_tag}: no change, skipping fetch.")
 
     notes = build_notes(
         version=args.version,
@@ -141,6 +173,8 @@ def main():
         nerd_tag=args.nerd_tag,
         lxgw_body=lxgw_body,
         nerd_body=nerd_body,
+        lxgw_changed=lxgw_changed,
+        nerd_changed=nerd_changed,
     )
 
     output = Path(args.output)

@@ -52,10 +52,12 @@ jobs:
   resolve-params:
     runs-on: ubuntu-latest
     outputs:
-      git_tag:  ${{ steps.params.outputs.git_tag }}
-      version:  ${{ steps.params.outputs.version }}
-      lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
-      nerd_tag:  ${{ steps.params.outputs.nerd_tag }}
+      git_tag:      ${{ steps.params.outputs.git_tag }}
+      version:      ${{ steps.params.outputs.version }}
+      lxgw_tag:     ${{ steps.params.outputs.lxgw_tag }}
+      nerd_tag:     ${{ steps.params.outputs.nerd_tag }}
+      lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
+      nerd_changed:  ${{ steps.params.outputs.nerd_changed }}
 
     steps:
       - name: Checkout repository
@@ -83,16 +85,41 @@ jobs:
           # Extract X.Y.Z from tag (strip leading 'v', take up to first '_')
           VERSION=$(echo "$GIT_TAG" | sed 's/^v//' | cut -d'_' -f1)
 
-          echo "git_tag=$GIT_TAG"   >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION"   >> "$GITHUB_OUTPUT"
-          echo "lxgw_tag=$LXGW_TAG" >> "$GITHUB_OUTPUT"
-          echo "nerd_tag=$NERD_TAG"  >> "$GITHUB_OUTPUT"
+          # Detect which upstream actually changed vs. what versions.json recorded.
+          # versions.json is the state AFTER check_versions.py updated it, so the
+          # tags it contains are already the NEW values. We compare against the
+          # previous git tag encoded in packaging.git_tag to detect changes.
+          PREV_GIT_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('git_tag', ''))")
+
+          # Extract compact lxgw/nerd tokens from the git tags (e.g. lxgw1521, nerd340)
+          PREV_LXGW=$(echo "$PREV_GIT_TAG" | grep -oP '(?<=_lxgw)\w+' || true)
+          PREV_NERD=$(echo  "$PREV_GIT_TAG" | grep -oP '(?<=_nerd)\w+'  || true)
+          NEW_LXGW=$(echo  "$GIT_TAG"      | grep -oP '(?<=_lxgw)\w+' || true)
+          NEW_NERD=$(echo  "$GIT_TAG"      | grep -oP '(?<=_nerd)\w+'  || true)
+
+          LXGW_CHANGED="false"
+          NERD_CHANGED="false"
+          [ "$NEW_LXGW" != "$PREV_LXGW" ] && LXGW_CHANGED="true"
+          [ "$NEW_NERD"  != "$PREV_NERD"  ] && NERD_CHANGED="true"
+          # If both appear unchanged (e.g. first-run / force-build), treat both as changed
+          # so the release notes always include at least one changelog.
+          if [ "$LXGW_CHANGED" = "false" ] && [ "$NERD_CHANGED" = "false" ]; then
+            LXGW_CHANGED="true"
+            NERD_CHANGED="true"
+          fi
+
+          echo "git_tag=$GIT_TAG"             >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"             >> "$GITHUB_OUTPUT"
+          echo "lxgw_tag=$LXGW_TAG"           >> "$GITHUB_OUTPUT"
+          echo "nerd_tag=$NERD_TAG"            >> "$GITHUB_OUTPUT"
+          echo "lxgw_changed=$LXGW_CHANGED"   >> "$GITHUB_OUTPUT"
+          echo "nerd_changed=$NERD_CHANGED"    >> "$GITHUB_OUTPUT"
 
           echo "--- Build parameters ---"
-          echo "  git_tag  : $GIT_TAG"
-          echo "  version  : $VERSION"
-          echo "  lxgw_tag : $LXGW_TAG"
-          echo "  nerd_tag : $NERD_TAG"
+          echo "  git_tag      : $GIT_TAG"
+          echo "  version      : $VERSION"
+          echo "  lxgw_tag     : $LXGW_TAG  (changed: $LXGW_CHANGED)"
+          echo "  nerd_tag     : $NERD_TAG   (changed: $NERD_CHANGED)"
 
 # ---------------------------------------------------------------------------
 # Job 2: Download upstream font sources
@@ -297,10 +324,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           python scripts/build_release_notes.py \
-            --version  "${{ needs.resolve-params.outputs.version }}" \
-            --lxgw-tag "${{ needs.resolve-params.outputs.lxgw_tag }}" \
-            --nerd-tag "${{ needs.resolve-params.outputs.nerd_tag }}" \
-            --output   /tmp/release_notes.md \
+            --version      "${{ needs.resolve-params.outputs.version }}" \
+            --lxgw-tag     "${{ needs.resolve-params.outputs.lxgw_tag }}" \
+            --nerd-tag     "${{ needs.resolve-params.outputs.nerd_tag }}" \
+            --lxgw-changed "${{ needs.resolve-params.outputs.lxgw_changed }}" \
+            --nerd-changed "${{ needs.resolve-params.outputs.nerd_changed }}" \
+            --output       /tmp/release_notes.md \
             --github-token "$GITHUB_TOKEN"
           echo "--- Release notes preview (first 30 lines) ---"
           head -30 /tmp/release_notes.md
