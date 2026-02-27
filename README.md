@@ -1,42 +1,133 @@
-# 🌟 ENS Font (Elegant Nerd Sino Font)
+# ENS Font — Elegant Nerd Sino
 
-> **讓你的終端機不僅能寫 Code，還能優雅地讀詩。**
+> 讓你的終端機不僅能寫 Code，還能優雅地讀詩。
 
 🌐 **官方首頁與載點**：[ens.tw](https://ens.tw/font)
 
-我們從 ENS Font 與市面上無數「字體縫合怪」**最顯著的不同**開始討論：**這不僅僅是一套字型，這是一個活的、全自動化更新的字型 CI/CD 工廠。**
+開發者長期在「完美的英文等寬字體」與「優雅不擠壓的中文顯示」之間妥協。ENS Font 不是縫合怪——它是一條生產線：三款字體各就各位，字元衝突由腳本嚴格仲裁，上游一有更新，CI 自動重新建置並發布。
 
-寫程式或在終端機敲指令時，我們講求精準——打出來的字長什麼樣，系統就該完美呈現。但長久以來，開發者總在「完美的英文等寬字體」與「優雅不擠壓的中文顯示」之間妥協。**ENS Font** 應運而生，它的名字正是我們的方程式：
+**E · N · S** 三個字母定義了這套字體的架構：
 
-* **E (Elegant)**：保留霞鶩文楷自帶的文青屬性，提供排版舒適的優雅體驗。
-* **N (Nerd)**：注入 Nerd Fonts 支援數萬種 PUA 圖形，解放終端機美化火力。
-* **S (Sino)**：以廣闊的 CJK 字元庫作為基底，完美支撐龐大的中文生態。
-
-這不只是一套字體，這是以 **基礎設施 (Infrastructure as Code)** 精神打造的開源藝術品。
+- **E (Elegant)**：霞鶩文楷的文青氣質，讓中文在終端機裡也能好看
+- **N (Nerd)**：Nerd Fonts 數萬種 PUA 圖標，Powerline 主題完整支援
+- **S (Sino)**：廣闊的 CJK 字元庫作為基底，穩穩接住所有中日韓文字
 
 ---
 
-## ✨ 核心特色
+## 字元覆寫邏輯
 
-* **🔀 嚴格的字元覆寫邏輯 (Collision Resolution)**：在字體合併的過程中，本專案透過腳本嚴格執行以下優先權（Priority），確保每個字元都在它最擅長的位置：
-  1. **👑 絕對優先 - MesloLGM**：強制覆寫所有 ASCII 與基本拉丁字元，守護程式碼的絕對等寬與完美對齊。
-  2. **🛠️ 次要覆寫 - Nerd Fonts**：接管 Powerline 箭頭與終端機 UI 圖示，避免被中文字體干擾。
-  3. **🌊 堅實基底 - LXGW WenKai**：作為最底層的汪洋大海，穩穩接住所有前兩者缺乏的 CJK（中日韓）字元。
-* **🤖 零介入全自動更新**：利用 GitHub Actions 定期監控上游的 Release。一旦上游修復了錯字或新增了圖標，本專案會自動拉取、編譯、打包並發佈新版本。
-* **⚖️ 完全開源合規**：嚴格遵守 SIL Open Font License 1.1 規範，乾淨俐落的重新命名與封裝，沒有版權疑慮。
+合併時嚴格執行三層優先權，確保每個字元都在它最擅長的位置：
+
+| 優先順序 | 來源 | 負責範圍 |
+|---------|------|---------|
+| 👑 最高 | **MesloLGM** | ASCII、基本拉丁字元、Box Drawing、箭頭符號 |
+| 🛠️ 次之 | **Nerd Fonts** | Powerline 箭頭、PUA 終端機圖標（U+E000–U+F8FF） |
+| 🌊 基底 | **LXGW WenKai** | CJK、平假名、片假名、全形標點，以及一切前兩者沒有的字元 |
+
+實際驗證結果：
+
+- U+E0B0 ▶（Powerline）：WenKai 有佔位字形，但被 Nerd Fonts 正確圖標覆寫 ✓
+- U+2500 ─（Box Drawing）：兩者都有，Meslo 優先，確保等寬對齊 ✓
+- U+4E2D 中（CJK）：僅 WenKai 有，完整保留 ✓
 
 ---
 
-## 🚀 快速安裝
+## 字重說明
 
-### 方法一：直接下載 (推薦)
-1. 前往本專案的 [Releases 頁面](../../releases) 或造訪 [ens.tw](https://ens.tw)。
-2. 下載最新版本的 `ENS-Font.zip`。
-3. 解壓縮後，全選字體檔案並安裝至系統。
-4. 在你的終端機 (iTerm2, Windows Terminal) 或編輯器 (VS Code) 中，將字體設定為：`ENS Font` 或 `Elegant Nerd Sino`。
+LXGW WenKai Mono 提供 Regular / Medium / Light 三種字重（無 Bold）。ENS Font 對應如下：
 
-### 方法二：利用 Homebrew (macOS)
+| ENS Font 字重 | WenKai CJK 來源 | Meslo ASCII 來源 |
+|-------------|--------------|---------------|
+| Regular     | Regular      | Regular       |
+| Bold        | Medium（最接近）| Bold          |
+| Italic      | Regular      | Italic        |
+| Bold Italic | Medium       | Bold Italic   |
+
+---
+
+## 快速安裝
+
+### 方法一：直接下載（推薦）
+
+1. 前往 [Releases 頁面](../../releases)
+2. 下載最新版本的 `ENSFont-{version}.zip`
+3. 解壓縮，全選字體檔案安裝至系統
+4. 在終端機或編輯器中將字體設為 `ENS Font`
+
+**iTerm2**：Preferences → Profiles → Text → Font → 選擇 `ENS Font`
+
+**VS Code**：`"editor.fontFamily": "ENS Font"`
+
+**Windows Terminal**：`"fontFace": "ENS Font"`
+
+### 方法二：Homebrew（macOS，即將支援）
+
 ```bash
-# 即將支援 Coming Soon...
-# brew tap ens-font/fonts
+# Coming soon
+# brew tap enstw/fonts
 # brew install --cask font-ens
+```
+
+---
+
+## 自動更新機制
+
+本專案透過 GitHub Actions 全自動維護，無需人工介入：
+
+```
+每日 06:00 UTC
+    └── check-upstream.yml
+            ├── 查詢 lxgw/LxgwWenKai 最新 release
+            ├── 查詢 ryanoasis/nerd-fonts 最新 release
+            └── 若有更新 → 觸發 build-release.yml
+                    ├── 下載最新上游字體
+                    ├── 執行合併腳本（4 種字重並行）
+                    ├── OFL 合規自動驗證
+                    └── 發布新版 GitHub Release
+```
+
+---
+
+## 本地建置
+
+```bash
+git clone https://github.com/enstw/font.git
+cd font
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r scripts/requirements.txt
+
+# 下載上游字體
+mkdir -p fonts/wenkai fonts/meslo
+curl -fL "https://github.com/lxgw/LxgwWenKai/releases/latest/download/LXGWWenKaiMono-Regular.ttf" \
+     -o fonts/wenkai/LXGWWenKaiMono-Regular.ttf
+curl -fL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.tar.xz" \
+     -o /tmp/Meslo.tar.xz && tar -xJf /tmp/Meslo.tar.xz -C fonts/meslo/
+
+# 合併
+python scripts/merge.py \
+  --wenkai  fonts/wenkai/LXGWWenKaiMono-Regular.ttf \
+  --meslo   fonts/meslo/MesloLGMNerdFont-Regular.ttf \
+  --output  dist/ENSFont-Regular.ttf \
+  --style   Regular \
+  --version 1.0.0 \
+  --lxgw-version 1.521 \
+  --nerd-version 3.4.0
+```
+
+---
+
+## 授權
+
+ENS Font 的最終輸出字體以 **SIL Open Font License 1.1** 發布。
+
+| 來源 | 授權 | 用途 |
+|------|------|------|
+| [LXGW WenKai Mono](https://github.com/lxgw/LxgwWenKai) | SIL OFL 1.1 | CJK 字元基底 |
+| [MesloLGM](https://github.com/andreberg/Meslo-Font) | Apache 2.0 | ASCII / 拉丁字元 |
+| [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) | MIT | PUA 終端機圖標 |
+
+保留字型名稱（Reserved Font Names）：**"ENS Font"** 與 **"Elegant Nerd Sino"**。
+
+原始字體的保留名稱 "LXGW"、"霞鶩"、"Klee"、"Meslo" 均**未使用**於本衍生字體。
