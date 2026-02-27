@@ -147,6 +147,7 @@ def main():
     print("Checking upstream releases...")
 
     changed = False
+    errors = []
 
     # --- Check LXGW WenKai ---
     try:
@@ -161,6 +162,7 @@ def main():
             print(f"  LXGW WenKai: {current_lxgw_tag}  [no change]")
     except Exception as e:
         print(f"  WARNING: Could not check LXGW WenKai: {e}", file=sys.stderr)
+        errors.append(f"LXGW WenKai check failed: {e}")
 
     # --- Check Nerd Fonts (also carries MesloLGM) ---
     try:
@@ -175,6 +177,13 @@ def main():
             print(f"  Nerd Fonts:  {current_nerd_tag}  [no change]")
     except Exception as e:
         print(f"  WARNING: Could not check Nerd Fonts: {e}", file=sys.stderr)
+        errors.append(f"Nerd Fonts check failed: {e}")
+
+    if errors:
+        print("\nERROR: Upstream release checks failed; aborting to avoid false 'no change'.", file=sys.stderr)
+        for msg in errors:
+            print(f"  - {msg}", file=sys.stderr)
+        sys.exit(2)
 
     if not changed:
         # Even if upstream versions match, check whether a Release for the

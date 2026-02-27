@@ -17,7 +17,7 @@ name: Check Upstream Versions
 
 on:
   schedule:
-    - cron: "0 6 * * *"   # Daily at 06:00 UTC
+    - cron: "0 6 * * *" # Daily at 06:00 UTC
   workflow_dispatch:
     inputs:
       force_build:
@@ -34,12 +34,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       versions_changed: ${{ steps.check.outputs.VERSIONS_CHANGED }}
-      new_version:      ${{ steps.check.outputs.NEW_VERSION }}
-      git_tag:          ${{ steps.check.outputs.GIT_TAG }}
-      lxgw_tag:         ${{ steps.check.outputs.LXGW_TAG }}
-      nerd_tag:         ${{ steps.check.outputs.NERD_TAG }}
-      prev_lxgw_tag:    ${{ steps.check.outputs.PREV_LXGW_TAG }}
-      prev_nerd_tag:    ${{ steps.check.outputs.PREV_NERD_TAG }}
+      new_version: ${{ steps.check.outputs.NEW_VERSION }}
+      git_tag: ${{ steps.check.outputs.GIT_TAG }}
+      lxgw_tag: ${{ steps.check.outputs.LXGW_TAG }}
+      nerd_tag: ${{ steps.check.outputs.NERD_TAG }}
+      prev_lxgw_tag: ${{ steps.check.outputs.PREV_LXGW_TAG }}
+      prev_nerd_tag: ${{ steps.check.outputs.PREV_NERD_TAG }}
 
     steps:
       - name: Checkout repository
@@ -88,7 +88,7 @@ jobs:
           git add versions.json
           git diff --cached --quiet && echo "No changes to commit (first-run)" || \
             git commit -m "chore(versions): update to ${{ steps.check.outputs.GIT_TAG }}"
-          git push || true
+          git push
 
   trigger-build:
     needs: check-versions
@@ -96,7 +96,6 @@ jobs:
       needs.check-versions.outputs.versions_changed == 'true' ||
       github.event.inputs.force_build == 'true'
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

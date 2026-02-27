@@ -135,9 +135,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download LXGW WenKai / WenKai Mono TTF files
+        env:
+          LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
         run: |
           mkdir -p fonts/wenkai
-          BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/latest/download"
+          BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/download/${LXGW_TAG}"
           # Both WenKai and WenKai Mono ship Regular/Medium/Light (no Bold).
           # Medium is used as the CJK base for Bold/Bold Italic styles.
           for VARIANT in Regular Medium Light; do
@@ -155,10 +157,12 @@ jobs:
           test -f fonts/wenkai/LXGWWenKaiMono-Medium.ttf
 
       - name: Download Nerd Fonts Meslo archive
+        env:
+          NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
           mkdir -p fonts/meslo
           ARCHIVE="Meslo.tar.xz"
-          URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${ARCHIVE}"
+          URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE}"
           echo "Downloading ${ARCHIVE} ..."
           curl -fsSL "$URL" -o "/tmp/${ARCHIVE}"
           echo "Extracting Meslo fonts ..."
