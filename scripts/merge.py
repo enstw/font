@@ -302,7 +302,7 @@ def set_font_metadata(
         (14, "https://openfontlicense.org"),
         (
             19,
-            'ENS:  git status  |   main  ⇡1 ⇣0  ✚2 ~1 -0  |   git commit -m "Hello, 世界"  ✅ ；Elegant Nerd Sino Font：英文、中文、符號都要優雅。',
+            "Elegant Nerd Sino Font：終端機字體預覽，English + 繁體中文 + 1234567890。",
         ),
     ]
 
@@ -310,9 +310,14 @@ def set_font_metadata(
     ids_to_clear = {e[0] for e in entries}
     name_table.names = [n for n in name_table.names if n.nameID not in ids_to_clear]
 
-    # Write entries for both Windows (platformID=3) and Mac (platformID=1)
+    # Write Traditional Chinese localized names first so font managers classify it as TC.
+    # Keep en-US as a fallback on Windows for apps that only surface English names.
     for name_id, value in entries:
-        for platform_id, enc_id, lang_id in [(3, 1, 0x0409), (1, 0, 0)]:
+        for platform_id, enc_id, lang_id in [
+            (3, 1, 0x0404),  # zh-TW (Windows)
+            (3, 1, 0x0409),  # en-US (Windows fallback)
+            (1, 0, 19),      # Traditional Chinese (Mac)
+        ]:
             record = _n_a_m_e.NameRecord()
             record.nameID = name_id
             record.platformID = platform_id
