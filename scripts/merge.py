@@ -192,18 +192,27 @@ def copy_glyph(src_font: TTFont, dst_font: TTFont, src_name: str, dst_name: str)
 
 
 def update_cmap(font: TTFont, codepoint: int, glyph_name: str) -> None:
-    """Update all Unicode cmap subtables to map codepoint -> glyph_name."""
+    """Update Unicode cmap subtables to map codepoint -> glyph_name.
+
+    cmap format 4 is BMP-only (U+0000-U+FFFF, stored as unsigned short).
+    Non-BMP codepoints (>U+FFFF) must only go into format 12 (full Unicode).
+    Writing them into format 4 causes an OverflowError on compile.
+    """
     cmap_table = font["cmap"]
     bmp = codepoint <= 0xFFFF
 
     for subtable in cmap_table.tables:
-        if subtable.platformID in (0, 3):
-            if bmp and subtable.platEncID in (1, 3):
-                subtable.cmap[codepoint] = glyph_name
-            elif subtable.platEncID in (4, 10):
-                subtable.cmap[codepoint] = glyph_name
-            elif subtable.platformID == 0 and subtable.platEncID in (3, 4):
-                subtable.cmap[codepoint] = glyph_name
+        if subtable.platformID not in (0, 3):
+            continue
+        fmt = subtable.format
+        if bmp and fmt in (4, 6):
+            # BMP subtables: safe to write BMP codepoints
+            subtable.cmap[codepoint] = glyph_name
+        elif fmt in (12, 13):
+            # Full Unicode subtables: write all codepoints
+            subtable.cmap[codepoint] = glyph_name
+        elif subtable.platformID == 0 and fmt in (3, 4) and bmp:
+            subtable.cmap[codepoint] = glyph_name
 
 
 def glyph_name_for_codepoint(codepoint: int, prefix: str) -> str:

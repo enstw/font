@@ -106,36 +106,26 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download LXGW WenKai Mono TTF files
-        env:
-          LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           mkdir -p fonts/wenkai
-          BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/download/${LXGW_TAG}"
-          for VARIANT in Regular Bold Light; do
+          BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/latest/download"
+          # WenKai Mono v1.521 ships: Regular, Medium, Light (no Bold)
+          # Medium is used as the CJK base for Bold/Bold Italic styles
+          for VARIANT in Regular Medium Light; do
             FILE="LXGWWenKaiMono-${VARIANT}.ttf"
             echo "Downloading $FILE ..."
-            curl -fsSL \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              "${BASE_URL}/${FILE}" \
-              -o "fonts/wenkai/${FILE}"
+            curl -fsSL "${BASE_URL}/${FILE}" -o "fonts/wenkai/${FILE}"
           done
           echo "LXGW WenKai downloads:"
           ls -lh fonts/wenkai/
 
       - name: Download Nerd Fonts Meslo archive
-        env:
-          NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
-          GH_TOKEN: ${{ secrets.BOT_PAT }}
         run: |
           mkdir -p fonts/meslo
           ARCHIVE="Meslo.tar.xz"
-          URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE}"
+          URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${ARCHIVE}"
           echo "Downloading ${ARCHIVE} ..."
-          curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            "$URL" \
-            -o "/tmp/${ARCHIVE}"
+          curl -fsSL "$URL" -o "/tmp/${ARCHIVE}"
           echo "Extracting Meslo fonts ..."
           tar -xJf "/tmp/${ARCHIVE}" -C fonts/meslo/
           echo "MesloLGM fonts found:"
@@ -165,19 +155,20 @@ jobs:
             output_file: ENSFont-Regular.ttf
 
           - style:       Bold
-            wenkai_file: LXGWWenKaiMono-Bold.ttf
+            # WenKai has no Bold; Medium is the closest weight
+            wenkai_file: LXGWWenKaiMono-Medium.ttf
             meslo_file:  MesloLGMNerdFont-Bold.ttf
             output_file: ENSFont-Bold.ttf
 
           - style:       Italic
-            # WenKai has no true italic; use Regular as the CJK base.
-            # Terminal emulators synthesize italic for CJK when needed.
+            # WenKai has no italic; Regular used as CJK base
             wenkai_file: LXGWWenKaiMono-Regular.ttf
             meslo_file:  MesloLGMNerdFont-Italic.ttf
             output_file: ENSFont-Italic.ttf
 
           - style:       Bold Italic
-            wenkai_file: LXGWWenKaiMono-Bold.ttf
+            # WenKai has no Bold Italic; Medium used as CJK base
+            wenkai_file: LXGWWenKaiMono-Medium.ttf
             meslo_file:  MesloLGMNerdFont-BoldItalic.ttf
             output_file: ENSFont-BoldItalic.ttf
 
