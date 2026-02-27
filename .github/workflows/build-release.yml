@@ -308,6 +308,7 @@ jobs:
           cd dist
           zip -j "../ENSFont-${VERSION}.zip" *.ttf
           cd ..
+          zip "ENSFont-${VERSION}.zip" README.md
           ls -lh "ENSFont-${VERSION}.zip"
 
       - name: Set up Python for release notes
