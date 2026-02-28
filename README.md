@@ -81,7 +81,7 @@ LXGW WenKai / LXGW WenKai Mono 皆提供 Regular / Medium / Light 三種字重�
 本專案透過 GitHub Actions 全自動維護，無需人工介入：
 
 ```
-每日 06:00 UTC
+每日 06:15 UTC
     └── check-upstream.yml
             ├── 查詢 lxgw/LxgwWenKai 最新 release
             ├── 查詢 ryanoasis/nerd-fonts 最新 release
