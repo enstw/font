@@ -94,6 +94,7 @@ jobs:
     needs: check-versions
     if: |
       needs.check-versions.outputs.versions_changed == 'true' ||
+      inputs.force_build == true ||
       github.event.inputs.force_build == 'true'
     runs-on: ubuntu-latest
     steps:
