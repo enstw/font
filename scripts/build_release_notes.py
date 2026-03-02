@@ -140,7 +140,7 @@ def build_notes(
 原始保留名稱 "LXGW"、"霞鶩"、"Klee"、"Meslo" 均**未使用**於本衍生字體。
 
 ### Contributors
-@enstw · Claude (AI)
+@enstw · [Claude](https://github.com/claude)
 
 ---
 
