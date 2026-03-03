@@ -7,7 +7,9 @@ Merge strategy:
   Donor:  MesloLGMNerdFont  — ASCII, Latin, Box Drawing, PUA icons (Meslo + Nerd Fonts
           are already bundled together in a single TTF, so no priority resolution needed)
 
-All donor codepoints not already present in the base are transplanted in a single pass.
+All donor codepoints are transplanted into the base, overwriting any existing WenKai
+entry at the same codepoint. WenKai serves as the failsafe: only codepoints absent
+from the donor are retained from WenKai.
 
 Usage:
     python scripts/merge.py \\
@@ -198,7 +200,7 @@ def fix_glyph_order(font: TTFont) -> None:
     existing_order = font.getGlyphOrder()
     existing_set = set(existing_order)
     glyf_names = set(font["glyf"].keys())
-    new_glyphs = [g for g in glyf_names if g not in existing_set]
+    new_glyphs = sorted(g for g in glyf_names if g not in existing_set)
     if new_glyphs:
         log.info(f"Adding {len(new_glyphs)} new glyphs to glyph order")
         font.setGlyphOrder(existing_order + new_glyphs)
@@ -499,10 +501,10 @@ def merge_fonts(
     log.info("Step 1: Ensuring cmap subtable coverage...")
     ensure_cmap_subtables(base)
 
-    # Step 2: Transplant all MesloLGMNerdFont glyphs not already in WenKai.
-    # Meslo and Nerd Fonts are pre-bundled in the same TTF; WenKai codepoints
-    # are never overwritten — whatever WenKai has, it keeps.
-    log.info("Step 2: Transplanting MesloLGMNerdFont glyphs (fill gaps only)...")
+    # Step 2: Transplant all MesloLGMNerdFont glyphs into WenKai.
+    # Donor codepoints overwrite WenKai entries; WenKai is the failsafe
+    # and only retains codepoints the donor does not cover.
+    log.info("Step 2: Transplanting MesloLGMNerdFont glyphs (donor overrides WenKai)...")
     meslo_count = transplant_glyphs(
         src_font=meslo,
         dst_font=base,
@@ -510,26 +512,26 @@ def merge_fonts(
     )
     log.info(f"  -> {meslo_count} glyphs transplanted")
 
-    # Step 4: Rebuild glyph order for internal consistency
-    log.info("Step 4: Rebuilding glyph order...")
+    # Step 3: Rebuild glyph order for internal consistency
+    log.info("Step 3: Rebuilding glyph order...")
     fix_glyph_order(base)
 
-    # Step 5: Suppress verbose post table glyph names (saves ~20% file size)
+    # Step 4: Suppress verbose post table glyph names (saves ~20% file size)
     base["post"].formatType = 3.0
 
-    # Step 6: Set font metadata for OFL compliance
+    # Step 5: Set font metadata for OFL compliance
     log.info("Step 5: Setting font metadata (OFL compliance)...")
     set_font_metadata(base, family_name, ps_family, style, version, lxgw_ver, nerd_ver)
 
-    # Step 7: Set OS/2 and hhea metrics from MesloLGM reference
+    # Step 6: Set OS/2 and hhea metrics from MesloLGM reference
     log.info("Step 6: Setting OS/2/hhea metrics from MesloLGM...")
     set_os2_metrics(base, meslo)
 
-    # Step 8: Sanity check
+    # Step 7: Validate monospace integrity
     log.info("Step 7: Validating monospace integrity...")
     validate_monospace_integrity(base)
 
-    # Step 9: Rebuild vmtx so every glyph has a valid vertical metrics entry.
+    # Step 8: Rebuild vmtx so every glyph has a valid vertical metrics entry.
     # After transplanting Meslo glyphs the vmtx entry count no longer matches
     # the enlarged glyph set, causing macOS validation warnings.  We rebuild
     # the table: advance height = vhea.advanceHeightMax for every glyph,
@@ -538,10 +540,10 @@ def merge_fonts(
         log.info("Step 8: Rebuilding vmtx for full glyph coverage...")
         rebuild_vmtx(base)
 
-    # Step 10: Save
+    # Step 9: Save
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    log.info(f"Step 10: Saving to {output_path} ...")
+    log.info(f"Step 9: Saving to {output_path} ...")
     base.save(str(output))
 
     size_kb = output.stat().st_size // 1024

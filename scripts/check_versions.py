@@ -45,8 +45,22 @@ def release_tag_exists(owner_repo: str, tag: str, token: str) -> bool:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    resp = requests.get(url, headers=headers, timeout=30)
-    return resp.status_code == 200
+    try:
+        resp = requests.get(url, headers=headers, timeout=30)
+    except requests.RequestException as e:
+        print(f"WARNING: Could not check release tag '{tag}': {e}", file=sys.stderr)
+        # Assume tag exists on network error to avoid false rebuild triggers
+        return True
+    if resp.status_code == 200:
+        return True
+    if resp.status_code == 404:
+        return False
+    # Unexpected status (5xx, 403, etc.) — treat as unknown, assume exists
+    print(
+        f"WARNING: Unexpected status {resp.status_code} checking release tag '{tag}'",
+        file=sys.stderr,
+    )
+    return True
 
 
 def get_latest_release(repo: str, token: str) -> dict:
@@ -154,6 +168,8 @@ def main():
     current_lxgw_tag = versions["upstream"]["lxgw_wenkai"]["tag"]
     current_nerd_tag = versions["upstream"]["meslo_nerd"]["tag"]
     current_pkg_ver = versions["packaging"]["version"]
+    lxgw_repo = versions["upstream"]["lxgw_wenkai"]["repo"]
+    nerd_repo = versions["upstream"]["meslo_nerd"]["repo"]
 
     print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}")
     print("Checking upstream releases...")
@@ -163,7 +179,7 @@ def main():
 
     # --- Check LXGW WenKai ---
     try:
-        lxgw_rel = get_latest_release("lxgw/LxgwWenKai", args.github_token)
+        lxgw_rel = get_latest_release(lxgw_repo, args.github_token)
         new_lxgw_tag = lxgw_rel["tag_name"]
         if new_lxgw_tag != current_lxgw_tag:
             print(f"  LXGW WenKai: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
@@ -180,7 +196,7 @@ def main():
 
     # --- Check Nerd Fonts (also carries MesloLGM) ---
     try:
-        nerd_rel = get_latest_release("ryanoasis/nerd-fonts", args.github_token)
+        nerd_rel = get_latest_release(nerd_repo, args.github_token)
         new_nerd_tag = nerd_rel["tag_name"]
         if new_nerd_tag != current_nerd_tag:
             print(f"  Nerd Fonts:  {current_nerd_tag} -> {new_nerd_tag}  [NEW]")
