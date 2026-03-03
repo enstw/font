@@ -13,12 +13,13 @@ Version format: `X.Y.Z` (SemVer) tracked in `versions.json`.
 Rules:
 - Minor bump resets patch to `0` (e.g. `1.1.3 → 1.2.0`)
 - Major bump resets minor and patch to `0` (e.g. `1.2.0 → 2.0.0`)
-- **Never auto-bump major** — always requires explicit human decision
-- Minor bumps are automated by `check_versions.py` on upstream change
-- Patch bumps are automated by `--bump-patch` flag on force rebuild
+- **Never touch `versions.json` unless the user explicitly asks you to.**
+- Minor bumps are automated by `check_versions.py` on upstream change — do not replicate this manually.
+- Patch bumps are automated by `--bump-patch` flag on force rebuild — do not replicate this manually.
+- Major bumps always require an explicit user instruction such as "bump major" or "release 2.0".
 
-To manually bump major or minor: edit `versions.json` directly (`version`
-and `git_tag` fields), commit, then trigger `build-release.yml` via
+When asked to bump major or minor: edit `versions.json` (`version` and
+`git_tag` fields), commit, then trigger `build-release.yml` via
 `workflow_dispatch`.
 
 ---
