@@ -101,6 +101,17 @@ jobs:
         with:
           token: ${{ secrets.BOT_PAT }}
 
+      - name: Bump patch version for force rebuild
+        if: github.event.inputs.force_build == 'true' && needs.check-versions.outputs.versions_changed != 'true'
+        run: |
+          python3 scripts/check_versions.py --bump-patch --versions-file versions.json
+          git config user.name  "ENS Font Bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add versions.json
+          git diff --cached --quiet && echo "No changes to commit" || \
+            git commit -m "chore(versions): bump patch for force rebuild"
+          git push
+
       - name: Resolve dispatch parameters
         id: resolve
         run: |

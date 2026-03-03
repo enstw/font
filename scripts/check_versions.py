@@ -27,9 +27,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import requests
-
-
 def release_tag_exists(owner_repo: str, tag: str, token: str) -> bool:
     """
     Check whether a GitHub Release with the given tag already exists
@@ -43,6 +40,8 @@ def release_tag_exists(owner_repo: str, tag: str, token: str) -> bool:
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
+
+    import requests
 
     try:
         resp = requests.get(url, headers=headers, timeout=30)
@@ -76,6 +75,8 @@ def get_latest_release(repo: str, token: str) -> dict:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
+    import requests
+
     resp = requests.get(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
@@ -97,6 +98,15 @@ def bump_minor(version: str) -> str:
         raise ValueError(f"Invalid version format (expected X.Y.Z): {version!r}")
     major, minor, _ = int(parts[0]), int(parts[1]), int(parts[2])
     return f"{major}.{minor + 1}.0"
+
+
+def bump_patch(version: str) -> str:
+    """Bump patch version: '1.1.0' -> '1.1.1'"""
+    parts = version.split(".")
+    if len(parts) != 3:
+        raise ValueError(f"Invalid version format (expected X.Y.Z): {version!r}")
+    major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])
+    return f"{major}.{minor}.{patch + 1}"
 
 
 def compact_version(raw: str) -> str:
@@ -151,6 +161,11 @@ def main():
         action="store_true",
         help="Print what would change without writing versions.json",
     )
+    parser.add_argument(
+        "--bump-patch",
+        action="store_true",
+        help="Bump patch version for a force rebuild (no upstream check)",
+    )
     args = parser.parse_args()
     github_token = os.environ.get("GITHUB_TOKEN", "")
 
@@ -161,6 +176,36 @@ def main():
 
     with open(versions_path) as f:
         versions = json.load(f)
+
+    if args.bump_patch:
+        current_pkg_ver = versions["packaging"]["version"]
+        current_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
+        current_nerd = versions["upstream"]["meslo_nerd"]["tag"]
+
+        new_pkg_ver = bump_patch(current_pkg_ver)
+        new_git_tag = build_git_tag(new_pkg_ver, current_lxgw, current_nerd)
+
+        print(f"Force rebuild: bumping patch {current_pkg_ver} -> {new_pkg_ver}")
+        print(f"New git tag: {new_git_tag}")
+
+        versions["packaging"]["version"] = new_pkg_ver
+        versions["packaging"]["last_built"] = datetime.now(timezone.utc).isoformat()
+        versions["packaging"]["git_tag"] = new_git_tag
+
+        if args.dry_run:
+            print("[DRY RUN] Would write versions.json:")
+            print(json.dumps(versions, indent=2, ensure_ascii=False))
+        else:
+            with open(versions_path, "w") as f:
+                json.dump(versions, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            print(f"Updated {versions_path}")
+
+        set_gha_output("NEW_VERSION", new_pkg_ver)
+        set_gha_output("GIT_TAG", new_git_tag)
+        set_gha_output("LXGW_TAG", current_lxgw)
+        set_gha_output("NERD_TAG", current_nerd)
+        sys.exit(0)
 
     current_lxgw_tag = versions["upstream"]["lxgw_wenkai"]["tag"]
     current_nerd_tag = versions["upstream"]["meslo_nerd"]["tag"]
