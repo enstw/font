@@ -10,7 +10,7 @@ Exit codes:
 GitHub Actions output variables written to $GITHUB_OUTPUT:
   VERSIONS_CHANGED  true | false
   NEW_VERSION       e.g. 1.2.0
-  GIT_TAG           e.g. v1.2.0_lxgw1521_nerd340
+  GIT_TAG           e.g. v1.2.0_lxgw1521_meslo_jbm_nerd340
   LXGW_TAG          e.g. v1.521
   NERD_TAG          e.g. v3.4.0
 
@@ -23,6 +23,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -85,18 +86,29 @@ def bump_minor(version: str) -> str:
     return f"{major}.{minor + 1}.0"
 
 
-def build_git_tag(pkg_version: str, lxgw_tag: str, nerd_tag: str) -> str:
+def compact_version(raw: str) -> str:
+    """
+    Convert version strings to tag-safe compact form.
+    Example: "2.304" -> "2304", "v3.4.0" -> "340".
+    """
+    return re.sub(r"[^0-9A-Za-z]+", "", raw.lstrip("vV"))
+
+
+def build_git_tag(
+    pkg_version: str,
+    lxgw_tag: str,
+    nerd_tag: str,
+) -> str:
     """
     Construct the git tag encoding all upstream versions.
     Uses underscores to avoid the '+' character which can cause issues
     in some git clients and shell scripts.
 
-    Example: v1.2.0_lxgw1521_nerd340
+    Example: v1.2.0_lxgw1521_meslo_jbm_nerd340
     """
-    # Strip 'v' prefix and dots for compact encoding: v1.521 -> 1521
-    lxgw_compact = lxgw_tag.lstrip("v").replace(".", "")
-    nerd_compact  = nerd_tag.lstrip("v").replace(".", "")
-    return f"v{pkg_version}_lxgw{lxgw_compact}_nerd{nerd_compact}"
+    lxgw_compact = compact_version(lxgw_tag)
+    nerd_compact = compact_version(nerd_tag)
+    return f"v{pkg_version}_lxgw{lxgw_compact}_meslo_jbm_nerd{nerd_compact}"
 
 
 def set_gha_output(key: str, value: str) -> None:
@@ -141,7 +153,7 @@ def main():
 
     current_lxgw_tag = versions["upstream"]["lxgw_wenkai"]["tag"]
     current_nerd_tag = versions["upstream"]["meslo_nerd"]["tag"]
-    current_pkg_ver  = versions["packaging"]["version"]
+    current_pkg_ver = versions["packaging"]["version"]
 
     print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}")
     print("Checking upstream releases...")
@@ -156,7 +168,9 @@ def main():
         if new_lxgw_tag != current_lxgw_tag:
             print(f"  LXGW WenKai: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
             versions["upstream"]["lxgw_wenkai"]["tag"] = new_lxgw_tag
-            versions["upstream"]["lxgw_wenkai"]["release_date"] = lxgw_rel["published_at"]
+            versions["upstream"]["lxgw_wenkai"]["release_date"] = lxgw_rel[
+                "published_at"
+            ]
             changed = True
         else:
             print(f"  LXGW WenKai: {current_lxgw_tag}  [no change]")
@@ -171,7 +185,9 @@ def main():
         if new_nerd_tag != current_nerd_tag:
             print(f"  Nerd Fonts:  {current_nerd_tag} -> {new_nerd_tag}  [NEW]")
             versions["upstream"]["meslo_nerd"]["tag"] = new_nerd_tag
-            versions["upstream"]["meslo_nerd"]["release_date"] = nerd_rel["published_at"]
+            versions["upstream"]["meslo_nerd"]["release_date"] = nerd_rel[
+                "published_at"
+            ]
             changed = True
         else:
             print(f"  Nerd Fonts:  {current_nerd_tag}  [no change]")
@@ -180,7 +196,10 @@ def main():
         errors.append(f"Nerd Fonts check failed: {e}")
 
     if errors:
-        print("\nERROR: Upstream release checks failed; aborting to avoid false 'no change'.", file=sys.stderr)
+        print(
+            "\nERROR: Upstream release checks failed; aborting to avoid false 'no change'.",
+            file=sys.stderr,
+        )
         for msg in errors:
             print(f"  - {msg}", file=sys.stderr)
         sys.exit(2)
@@ -193,10 +212,14 @@ def main():
         own_repo = os.environ.get("GITHUB_REPOSITORY", "")
         print(f"GITHUB_REPOSITORY={own_repo!r}")
         if own_repo:
-            tag_published = release_tag_exists(own_repo, current_git_tag, args.github_token)
+            tag_published = release_tag_exists(
+                own_repo, current_git_tag, args.github_token
+            )
             print(f"Release tag '{current_git_tag}' exists: {tag_published}")
             if not tag_published:
-                print(f"No upstream changes, but Release '{current_git_tag}' not found.")
+                print(
+                    f"No upstream changes, but Release '{current_git_tag}' not found."
+                )
                 print("Triggering initial build...")
                 # Re-export current versions as outputs so trigger-build can dispatch.
                 # prev_* are set to empty so build-release treats both as changed.
@@ -216,8 +239,12 @@ def main():
     # --- Bump packaging version and rebuild tag ---
     new_pkg_ver = bump_minor(current_pkg_ver)
     new_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
-    new_nerd  = versions["upstream"]["meslo_nerd"]["tag"]
-    new_git_tag = build_git_tag(new_pkg_ver, new_lxgw, new_nerd)
+    new_nerd = versions["upstream"]["meslo_nerd"]["tag"]
+    new_git_tag = build_git_tag(
+        new_pkg_ver,
+        new_lxgw,
+        new_nerd,
+    )
 
     print(f"Packaging version: {current_pkg_ver} -> {new_pkg_ver}")
     print(f"New git tag:       {new_git_tag}")
@@ -226,9 +253,9 @@ def main():
     # upstream actually changed without having to parse the git tag string.
     versions["packaging"]["prev_lxgw_tag"] = current_lxgw_tag
     versions["packaging"]["prev_nerd_tag"] = current_nerd_tag
-    versions["packaging"]["version"]   = new_pkg_ver
+    versions["packaging"]["version"] = new_pkg_ver
     versions["packaging"]["last_built"] = datetime.now(timezone.utc).isoformat()
-    versions["packaging"]["git_tag"]   = new_git_tag
+    versions["packaging"]["git_tag"] = new_git_tag
 
     if args.dry_run:
         print("[DRY RUN] Would write versions.json:")
