@@ -103,9 +103,11 @@ def bump_minor(version: str) -> str:
 def compact_version(raw: str) -> str:
     """
     Convert version strings to tag-safe compact form.
-    Example: "2.304" -> "2304", "v3.4.0" -> "340".
+    Strips leading 'v'/'V' prefix but preserves dots to avoid collisions
+    (e.g. "v3.4.0" vs "v34.0" must produce distinct results).
+    Example: "v1.521" -> "1.521", "v3.4.0" -> "3.4.0".
     """
-    return re.sub(r"[^0-9A-Za-z]+", "", raw.lstrip("vV"))
+    return raw.lstrip("vV")
 
 
 def build_git_tag(

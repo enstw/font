@@ -123,8 +123,9 @@ def copy_glyph(
             comp_dst = f"_ens_{comp_src}"
             copy_glyph(src_font, dst_font, comp_src, comp_dst)
             component.glyphName = comp_dst
-
-    dst_glyf[dst_name] = copy.deepcopy(src_glyph)
+        dst_glyf[dst_name] = src_glyph  # already a detached copy
+    else:
+        dst_glyf[dst_name] = copy.deepcopy(src_glyph)
     dst_hmtx.metrics[dst_name] = copy.deepcopy(src_hmtx.metrics[src_name])
 
 
@@ -451,8 +452,8 @@ def rebuild_vmtx(font: TTFont) -> None:
                 g.recalcBounds(glyf_table)
                 if hasattr(g, "yMax") and g.yMax is not None:
                     tsb = vert_ascent - g.yMax
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug(f"  vmtx: could not compute tsb for '{name}': {e}")
         existing[name] = (adv_height, tsb)
         rebuilt += 1
 
