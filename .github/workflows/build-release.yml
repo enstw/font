@@ -7,8 +7,11 @@
 #   - workflow_dispatch for manual builds
 #
 # Produces eight TTF files: (Regular, Bold, Italic, Bold Italic) x (Regular, Mono)
-# packaged
-# into a ZIP archive and published as a GitHub Release.
+# packaged into a ZIP archive and published as a GitHub Release.
+#
+# Upstream donor mapping:
+#   - ENS Font (non-mono): MesloLGM Nerd Font
+#   - ENS Font Mono:       JetBrainsMono Nerd Font Mono
 #
 # Required secrets:
 #   BOT_PAT  - Fine-grained PAT with: contents:write
@@ -156,27 +159,37 @@ jobs:
           test -f fonts/wenkai/LXGWWenKaiMono-Regular.ttf
           test -f fonts/wenkai/LXGWWenKaiMono-Medium.ttf
 
-      - name: Download Nerd Fonts Meslo archive
+      - name: Download Nerd Fonts archives (Meslo + JetBrainsMono)
         env:
           NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
-          mkdir -p fonts/meslo
-          ARCHIVE="Meslo.tar.xz"
-          URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE}"
-          echo "Downloading ${ARCHIVE} ..."
-          curl -fsSL "$URL" -o "/tmp/${ARCHIVE}"
+          mkdir -p fonts/meslo fonts/jetbrainsmono
+
+          MESLO_ARCHIVE="Meslo.tar.xz"
+          MESLO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${MESLO_ARCHIVE}"
+          echo "Downloading ${MESLO_ARCHIVE} ..."
+          curl -fsSL "$MESLO_URL" -o "/tmp/${MESLO_ARCHIVE}"
           echo "Extracting Meslo fonts ..."
-          tar -xJf "/tmp/${ARCHIVE}" -C fonts/meslo/
+          tar -xJf "/tmp/${MESLO_ARCHIVE}" -C fonts/meslo/
           echo "MesloLGM fonts found:"
           ls fonts/meslo/MesloLGMNerdFont*.ttf
           test -f fonts/meslo/MesloLGMNerdFont-Regular.ttf
           test -f fonts/meslo/MesloLGMNerdFont-Bold.ttf
           test -f fonts/meslo/MesloLGMNerdFont-Italic.ttf
           test -f fonts/meslo/MesloLGMNerdFont-BoldItalic.ttf
-          test -f fonts/meslo/MesloLGMNerdFontMono-Regular.ttf
-          test -f fonts/meslo/MesloLGMNerdFontMono-Bold.ttf
-          test -f fonts/meslo/MesloLGMNerdFontMono-Italic.ttf
-          test -f fonts/meslo/MesloLGMNerdFontMono-BoldItalic.ttf
+
+          JBM_ARCHIVE="JetBrainsMono.tar.xz"
+          JBM_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${JBM_ARCHIVE}"
+          echo "Downloading ${JBM_ARCHIVE} ..."
+          curl -fsSL "$JBM_URL" -o "/tmp/${JBM_ARCHIVE}"
+          echo "Extracting JetBrains Mono fonts ..."
+          tar -xJf "/tmp/${JBM_ARCHIVE}" -C fonts/jetbrainsmono/
+          echo "JetBrainsMono Nerd Font Mono fonts found:"
+          ls fonts/jetbrainsmono/JetBrainsMonoNerdFontMono*.ttf
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Italic.ttf
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-BoldItalic.ttf
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v4
@@ -198,14 +211,16 @@ jobs:
         include:
           - style: Regular
             wenkai_file: LXGWWenKai-Regular.ttf
-            meslo_file: MesloLGMNerdFont-Regular.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGMNerdFont-Regular.ttf
             output_file: ENSFont-Regular.ttf
             family_name: ENS Font
             ps_family: ENSFont
 
           - style: Regular
             wenkai_file: LXGWWenKaiMono-Regular.ttf
-            meslo_file: MesloLGMNerdFontMono-Regular.ttf
+            donor_subdir: jetbrainsmono
+            donor_file: JetBrainsMonoNerdFontMono-Regular.ttf
             output_file: ENSFontMono-Regular.ttf
             family_name: ENS Font Mono
             ps_family: ENSFontMono
@@ -213,7 +228,8 @@ jobs:
           - style: Bold
             # WenKai has no Bold; Medium is the closest weight
             wenkai_file: LXGWWenKai-Medium.ttf
-            meslo_file: MesloLGMNerdFont-Bold.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGMNerdFont-Bold.ttf
             output_file: ENSFont-Bold.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -221,7 +237,8 @@ jobs:
           - style: Bold
             # WenKai has no Bold; Medium is the closest weight
             wenkai_file: LXGWWenKaiMono-Medium.ttf
-            meslo_file: MesloLGMNerdFontMono-Bold.ttf
+            donor_subdir: jetbrainsmono
+            donor_file: JetBrainsMonoNerdFontMono-Bold.ttf
             output_file: ENSFontMono-Bold.ttf
             family_name: ENS Font Mono
             ps_family: ENSFontMono
@@ -229,7 +246,8 @@ jobs:
           - style: Italic
             # WenKai has no italic; Regular used as CJK base
             wenkai_file: LXGWWenKai-Regular.ttf
-            meslo_file: MesloLGMNerdFont-Italic.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGMNerdFont-Italic.ttf
             output_file: ENSFont-Italic.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -237,7 +255,8 @@ jobs:
           - style: Italic
             # WenKai has no italic; Regular used as CJK base
             wenkai_file: LXGWWenKaiMono-Regular.ttf
-            meslo_file: MesloLGMNerdFontMono-Italic.ttf
+            donor_subdir: jetbrainsmono
+            donor_file: JetBrainsMonoNerdFontMono-Italic.ttf
             output_file: ENSFontMono-Italic.ttf
             family_name: ENS Font Mono
             ps_family: ENSFontMono
@@ -245,7 +264,8 @@ jobs:
           - style: Bold Italic
             # WenKai has no Bold Italic; Medium used as CJK base
             wenkai_file: LXGWWenKai-Medium.ttf
-            meslo_file: MesloLGMNerdFont-BoldItalic.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGMNerdFont-BoldItalic.ttf
             output_file: ENSFont-BoldItalic.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -253,7 +273,8 @@ jobs:
           - style: Bold Italic
             # WenKai has no Bold Italic; Medium used as CJK base
             wenkai_file: LXGWWenKaiMono-Medium.ttf
-            meslo_file: MesloLGMNerdFontMono-BoldItalic.ttf
+            donor_subdir: jetbrainsmono
+            donor_file: JetBrainsMonoNerdFontMono-BoldItalic.ttf
             output_file: ENSFontMono-BoldItalic.ttf
             family_name: ENS Font Mono
             ps_family: ENSFontMono
@@ -291,7 +312,7 @@ jobs:
 
           python scripts/merge.py \
             --wenkai  "fonts/wenkai/${{ matrix.wenkai_file }}" \
-            --meslo   "fonts/meslo/${{ matrix.meslo_file }}" \
+            --meslo   "fonts/${{ matrix.donor_subdir }}/${{ matrix.donor_file }}" \
             --output  "dist/${{ matrix.output_file }}" \
             --family-name "${{ matrix.family_name }}" \
             --ps-family "${{ matrix.ps_family }}" \

@@ -16,21 +16,21 @@
 
 ## 合併邏輯
 
-以 **LXGW WenKai / LXGW WenKai Mono** 為基底，將 **MesloLGMNerdFont** 系列字元移植進去：
+以 **LXGW WenKai / LXGW WenKai Mono** 為基底，將 Nerd Fonts donor 字型移植進去：
 
 | 來源 | 負責範圍 |
 |------|---------|
-| **MesloLGMNerdFont**（優先） | 所有 Meslo 有的字元皆覆蓋 WenKai，包含 ASCII、Box Drawing、PUA 圖標 |
-| **LXGW WenKai**（補充） | 僅保留 Meslo 沒有的字元，主要為 CJK、假名、全形標點等 |
+| **MesloLGMNerdFont / JetBrainsMonoNerdFontMono**（優先） | donor 字型有的字元優先覆蓋 WenKai，包含 ASCII、Box Drawing、PUA 圖標 |
+| **LXGW WenKai**（補充） | 僅保留 donor 沒有的字元，主要為 CJK、假名、全形標點等 |
 
-規則只有一條：**Meslo 有的字以 Meslo 為準，其餘由 WenKai 補足。** MesloLGMNerdFont 本身已將 Meslo 與 Nerd Fonts 打包在一起，合併只需一次 pass，不需要優先權仲裁。
+規則只有一條：**donor 有的字以 donor 為準，其餘由 WenKai 補足。**
 
 目前產物對應如下：
 
 | 產物 | CJK 基底 | ASCII / 圖標來源 |
 |------|---------|------------------|
 | ENS Font | LXGW WenKai | MesloLGMNerdFont |
-| ENS Font Mono | LXGW WenKai Mono | MesloLGMNerdFontMono |
+| ENS Font Mono | LXGW WenKai Mono | JetBrainsMonoNerdFontMono |
 
 ---
 
@@ -38,16 +38,16 @@
 
 LXGW WenKai / LXGW WenKai Mono 皆提供 Regular / Medium / Light 三種字重（無 Bold）。ENS Font 與 ENS Font Mono 對應如下：
 
-| 產物 | 字重 | WenKai CJK 來源 | Meslo ASCII 來源 |
+| 產物 | 字重 | WenKai CJK 來源 | donor ASCII 來源 |
 |------|------|----------------|------------------|
 | ENS Font | Regular | Regular | MesloLGMNerdFont-Regular |
 | ENS Font | Bold | Medium（最接近） | MesloLGMNerdFont-Bold |
 | ENS Font | Italic | Regular | MesloLGMNerdFont-Italic |
 | ENS Font | Bold Italic | Medium | MesloLGMNerdFont-BoldItalic |
-| ENS Font Mono | Regular | Regular | MesloLGMNerdFontMono-Regular |
-| ENS Font Mono | Bold | Medium（最接近） | MesloLGMNerdFontMono-Bold |
-| ENS Font Mono | Italic | Regular | MesloLGMNerdFontMono-Italic |
-| ENS Font Mono | Bold Italic | Medium | MesloLGMNerdFontMono-BoldItalic |
+| ENS Font Mono | Regular | Regular | JetBrainsMonoNerdFontMono-Regular |
+| ENS Font Mono | Bold | Medium（最接近） | JetBrainsMonoNerdFontMono-Bold |
+| ENS Font Mono | Italic | Regular | JetBrainsMonoNerdFontMono-Italic |
+| ENS Font Mono | Bold Italic | Medium | JetBrainsMonoNerdFontMono-BoldItalic |
 
 ---
 
@@ -105,11 +105,13 @@ source .venv/bin/activate
 pip install -r scripts/requirements.txt
 
 # 下載上游字體
-mkdir -p fonts/wenkai fonts/meslo
+mkdir -p fonts/wenkai fonts/meslo fonts/jetbrainsmono
 curl -fL "https://github.com/lxgw/LxgwWenKai/releases/latest/download/LXGWWenKai-Regular.ttf" \
      -o fonts/wenkai/LXGWWenKai-Regular.ttf
 curl -fL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.tar.xz" \
      -o /tmp/Meslo.tar.xz && tar -xJf /tmp/Meslo.tar.xz -C fonts/meslo/
+curl -fL "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.tar.xz" \
+     -o /tmp/JetBrainsMono.tar.xz && tar -xJf /tmp/JetBrainsMono.tar.xz -C fonts/jetbrainsmono/
 
 # 合併
 python scripts/merge.py \
