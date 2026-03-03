@@ -25,6 +25,7 @@ Usage:
 import argparse
 import copy
 import logging
+from datetime import datetime
 import sys
 from pathlib import Path
 
@@ -281,7 +282,7 @@ def set_font_metadata(
         "CJK glyphs: LXGW WenKai Mono (c) 2021 Xiaocheng Liao, SIL OFL 1.1\n"
         "Latin/ASCII glyphs: MesloLGM (c) 2009-2013 Andre Berg, Apache License 2.0\n"
         "PUA icons: Nerd Fonts (c) 2014 Ryan L McIntyre, MIT License\n"
-        "Compiled font: (c) 2026 enstw (https://ens.tw/font), SIL OFL 1.1\n"
+        f"Compiled font: (c) {datetime.now().year} enstw (https://ens.tw/font), SIL OFL 1.1\n"
         'Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".\n'
         'The names "LXGW", "霞鶩", "Klee", and "Meslo" are NOT used by this derivative.'
     )

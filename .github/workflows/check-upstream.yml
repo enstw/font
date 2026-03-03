@@ -67,7 +67,6 @@ jobs:
           EXIT=0
           python scripts/check_versions.py \
             --versions-file versions.json \
-            --github-token "$GITHUB_TOKEN" \
           || EXIT=$?
 
           if [ "$EXIT" -eq 2 ]; then

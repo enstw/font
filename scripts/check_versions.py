@@ -15,9 +15,8 @@ GitHub Actions output variables written to $GITHUB_OUTPUT:
   NERD_TAG          e.g. v3.4.0
 
 Usage:
-    python scripts/check_versions.py \\
-        --versions-file versions.json \\
-        --github-token $GITHUB_TOKEN
+    GITHUB_TOKEN=... python scripts/check_versions.py \\
+        --versions-file versions.json
 """
 
 import argparse
@@ -148,16 +147,12 @@ def main():
         help="Path to versions.json (default: versions.json)",
     )
     parser.add_argument(
-        "--github-token",
-        default=os.environ.get("GITHUB_TOKEN", ""),
-        help="GitHub personal access token (or set GITHUB_TOKEN env var)",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print what would change without writing versions.json",
     )
     args = parser.parse_args()
+    github_token = os.environ.get("GITHUB_TOKEN", "")
 
     versions_path = Path(args.versions_file)
     if not versions_path.exists():
@@ -181,7 +176,7 @@ def main():
 
     # --- Check LXGW WenKai ---
     try:
-        lxgw_rel = get_latest_release(lxgw_repo, args.github_token)
+        lxgw_rel = get_latest_release(lxgw_repo, github_token)
         new_lxgw_tag = lxgw_rel["tag_name"]
         if new_lxgw_tag != current_lxgw_tag:
             print(f"  LXGW WenKai: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
@@ -198,7 +193,7 @@ def main():
 
     # --- Check Nerd Fonts (also carries MesloLGM) ---
     try:
-        nerd_rel = get_latest_release(nerd_repo, args.github_token)
+        nerd_rel = get_latest_release(nerd_repo, github_token)
         new_nerd_tag = nerd_rel["tag_name"]
         if new_nerd_tag != current_nerd_tag:
             print(f"  Nerd Fonts:  {current_nerd_tag} -> {new_nerd_tag}  [NEW]")
@@ -231,7 +226,7 @@ def main():
         print(f"GITHUB_REPOSITORY={own_repo!r}")
         if own_repo:
             tag_published = release_tag_exists(
-                own_repo, current_git_tag, args.github_token
+                own_repo, current_git_tag, github_token
             )
             print(f"Release tag '{current_git_tag}' exists: {tag_published}")
             if not tag_published:

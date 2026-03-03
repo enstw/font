@@ -15,8 +15,7 @@ Usage:
         --nerd-tag     v3.4.0 \\
         --lxgw-changed true \\
         --nerd-changed false \\
-        --output       /tmp/release_notes.md \\
-        --github-token $GITHUB_TOKEN
+        --output       /tmp/release_notes.md
 """
 
 import argparse
@@ -163,7 +162,12 @@ def build_notes(
 
 
 def parse_bool(value: str) -> bool:
-    return value.lower() in ("true", "1", "yes")
+    low = value.lower()
+    if low in ("true", "1", "yes"):
+        return True
+    if low in ("false", "0", "no"):
+        return False
+    raise ValueError(f"Unrecognized boolean value: {value!r} (expected true/false/yes/no/1/0)")
 
 
 def main():
@@ -190,13 +194,9 @@ def main():
     parser.add_argument(
         "--output", required=True, help="Output file path for release notes Markdown"
     )
-    parser.add_argument(
-        "--github-token",
-        default=os.environ.get("GITHUB_TOKEN", ""),
-        help="GitHub API token (or set GITHUB_TOKEN env var)",
-    )
     args = parser.parse_args()
 
+    github_token = os.environ.get("GITHUB_TOKEN", "")
     lxgw_changed = parse_bool(args.lxgw_changed)
     nerd_changed = parse_bool(args.nerd_changed)
 
@@ -204,7 +204,7 @@ def main():
     if lxgw_changed:
         print(f"Fetching LXGW WenKai changelog for {args.lxgw_tag}...")
         lxgw_body = get_release_body(
-            "lxgw/LxgwWenKai", args.lxgw_tag, args.github_token
+            "lxgw/LxgwWenKai", args.lxgw_tag, github_token
         )
     else:
         print(f"LXGW WenKai {args.lxgw_tag}: no change, skipping fetch.")
@@ -213,7 +213,7 @@ def main():
     if nerd_changed:
         print(f"Fetching Nerd Fonts changelog for {args.nerd_tag}...")
         nerd_body = get_release_body(
-            "ryanoasis/nerd-fonts", args.nerd_tag, args.github_token
+            "ryanoasis/nerd-fonts", args.nerd_tag, github_token
         )
     else:
         print(f"Nerd Fonts {args.nerd_tag}: no change, skipping fetch.")

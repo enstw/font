@@ -412,8 +412,7 @@ jobs:
             --nerd-tag     "${{ needs.resolve-params.outputs.nerd_tag }}" \
             --lxgw-changed "${{ needs.resolve-params.outputs.lxgw_changed }}" \
             --nerd-changed "${{ needs.resolve-params.outputs.nerd_changed }}" \
-            --output       /tmp/release_notes.md \
-            --github-token "$GITHUB_TOKEN"
+            --output       /tmp/release_notes.md
           echo "--- Release notes preview (first 30 lines) ---"
           head -30 /tmp/release_notes.md
 
