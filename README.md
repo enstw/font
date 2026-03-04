@@ -20,14 +20,14 @@
 
 | 來源 | 負責範圍 |
 |------|---------|
-| **MesloLGMNerdFont / JetBrainsMonoNerdFontMono**（優先） | donor 字型有的字元優先覆蓋 WenKai，包含 ASCII、Box Drawing、PUA 圖標 |
+| **MesloLGMNerdFont / JetBrainsMonoNerdFontMono**（優先） | donor 字型涵蓋的所有字元，一律優先覆蓋 WenKai |
 | **LXGW WenKai**（補充） | 僅保留 donor 沒有的字元，主要為 CJK、假名、全形標點等 |
 
 規則只有一條：**donor 有的字以 donor 為準，其餘由 WenKai 補足。**
 
 目前產物對應如下：
 
-| 產物 | CJK 基底 | ASCII / 圖標來源 |
+| 產物 | CJK 基底 | Donor 來源 |
 |------|---------|------------------|
 | ENS Font | LXGW WenKai | MesloLGMNerdFont |
 | ENS Font Mono | LXGW WenKai Mono | JetBrainsMonoNerdFontMono |
@@ -38,7 +38,7 @@
 
 LXGW WenKai / LXGW WenKai Mono 皆提供 Regular / Medium / Light 三種字重（無 Bold）。ENS Font 與 ENS Font Mono 對應如下：
 
-| 產物 | 字重 | WenKai CJK 來源 | donor ASCII 來源 |
+| 產物 | 字重 | WenKai CJK 來源 | Donor 來源 |
 |------|------|----------------|------------------|
 | ENS Font | Regular | Regular | MesloLGMNerdFont-Regular |
 | ENS Font | Bold | Medium（最接近） | MesloLGMNerdFont-Bold |
