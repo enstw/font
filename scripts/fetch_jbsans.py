@@ -25,7 +25,6 @@ Usage:
 
 import argparse
 import re
-import shutil
 import sys
 from io import BytesIO
 from pathlib import Path
@@ -50,14 +49,7 @@ WEIGHT_INSTANCES = {
     "Bold": 700,
 }
 
-# Italic styles are copies of their upright counterparts
-# (JetBrains Sans has no italic axis)
-ITALIC_COPIES = {
-    "Italic": "Regular",
-    "BoldItalic": "Bold",
-}
-
-STYLES = ["Regular", "Bold", "Italic", "BoldItalic"]
+STYLES = ["Regular", "Bold"]
 
 
 def fetch_text(url: str, label: str) -> str:
@@ -145,14 +137,6 @@ def main():
         static.save(str(out_path))
         print(f"    -> {out_path.name} ({out_path.stat().st_size // 1024} KB)")
         produced[style] = out_path
-
-    # Step 5: copy upright fonts for italic styles (no italic axis)
-    for italic_style, base_style in ITALIC_COPIES.items():
-        src = produced[base_style]
-        dst = out_dir / f"JetBrainsSans-{italic_style}.ttf"
-        shutil.copy2(str(src), str(dst))
-        print(f"  {italic_style} <- copy of {base_style} (no italic axis)")
-        produced[italic_style] = dst
 
     print(f"\nOutput in {out_dir}/:")
     for style in STYLES:

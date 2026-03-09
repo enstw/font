@@ -6,7 +6,7 @@
 #   - repository_dispatch (event: upstream-updated) from check-upstream.yml
 #   - workflow_dispatch for manual builds
 #
-# Produces eight TTF files: (Regular, Bold, Italic, Bold Italic) x (Regular, Mono)
+# Produces four TTF files: (Regular, Bold) x (ENS Font, ENS Font Mono)
 # packaged into a ZIP archive and published as a GitHub Release.
 #
 # Upstream donor mapping:
@@ -21,7 +21,7 @@
 #       |
 #   download-fonts
 #       |
-#   build (matrix x8, parallel)
+#   build (matrix x4, parallel)
 #       |
 #   release
 
@@ -177,8 +177,6 @@ jobs:
           ls -lh fonts/jetbrains_sans/
           test -f fonts/jetbrains_sans/JetBrainsSans-Regular.ttf
           test -f fonts/jetbrains_sans/JetBrainsSans-Bold.ttf
-          test -f fonts/jetbrains_sans/JetBrainsSans-Italic.ttf
-          test -f fonts/jetbrains_sans/JetBrainsSans-BoldItalic.ttf
 
       - name: Download Nerd Fonts archives (NerdFontsSymbolsOnly + JetBrainsMono)
         env:
@@ -212,8 +210,6 @@ jobs:
           ls fonts/jetbrainsmono/JetBrainsMonoNerdFontMono*.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Italic.ttf
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-BoldItalic.ttf
 
       - name: Patch JetBrains Sans with Nerd Fonts symbols (non-mono pre-patch)
         run: |
@@ -225,7 +221,7 @@ jobs:
                      || ls fonts/nerd_symbols/*.ttf | head -1)
           echo "Nerd symbols source: $SYMBOLS_TTF"
 
-          for STYLE in Regular Bold Italic BoldItalic; do
+          for STYLE in Regular Bold; do
             INPUT="fonts/jetbrains_sans/JetBrainsSans-${STYLE}.ttf"
             OUTPUT="fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-${STYLE}.ttf"
             echo "Patching ${STYLE} ..."
@@ -236,8 +232,6 @@ jobs:
           ls -lh fonts/jetbrains_sans_patched/
           test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf
           test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Italic.ttf
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-BoldItalic.ttf
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v4
@@ -291,42 +285,6 @@ jobs:
             donor_subdir: jetbrainsmono
             donor_file: JetBrainsMonoNerdFontMono-Bold.ttf
             output_file: ENSFontMono-Bold.ttf
-            family_name: ENS Font Mono
-            ps_family: ENSFontMono
-
-          - style: Italic
-            # WenKai has no italic; Regular used as CJK base
-            wenkai_file: LXGWWenKai-Regular.ttf
-            donor_subdir: jetbrains_sans_patched
-            donor_file: JetBrainsSans-NerdPatched-Italic.ttf
-            output_file: ENSFont-Italic.ttf
-            family_name: ENS Font
-            ps_family: ENSFont
-
-          - style: Italic
-            # WenKai has no italic; Regular used as CJK base
-            wenkai_file: LXGWWenKaiMono-Regular.ttf
-            donor_subdir: jetbrainsmono
-            donor_file: JetBrainsMonoNerdFontMono-Italic.ttf
-            output_file: ENSFontMono-Italic.ttf
-            family_name: ENS Font Mono
-            ps_family: ENSFontMono
-
-          - style: Bold Italic
-            # WenKai has no Bold Italic; Medium used as CJK base
-            wenkai_file: LXGWWenKai-Medium.ttf
-            donor_subdir: jetbrains_sans_patched
-            donor_file: JetBrainsSans-NerdPatched-BoldItalic.ttf
-            output_file: ENSFont-BoldItalic.ttf
-            family_name: ENS Font
-            ps_family: ENSFont
-
-          - style: Bold Italic
-            # WenKai has no Bold Italic; Medium used as CJK base
-            wenkai_file: LXGWWenKaiMono-Medium.ttf
-            donor_subdir: jetbrainsmono
-            donor_file: JetBrainsMonoNerdFontMono-BoldItalic.ttf
-            output_file: ENSFontMono-BoldItalic.ttf
             family_name: ENS Font Mono
             ps_family: ENSFontMono
 
@@ -497,8 +455,4 @@ jobs:
             dist/ENSFontMono-Regular.ttf
             dist/ENSFont-Bold.ttf
             dist/ENSFontMono-Bold.ttf
-            dist/ENSFont-Italic.ttf
-            dist/ENSFontMono-Italic.ttf
-            dist/ENSFont-BoldItalic.ttf
-            dist/ENSFontMono-BoldItalic.ttf
             ENSFont-${{ needs.resolve-params.outputs.version }}.zip

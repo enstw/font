@@ -121,14 +121,10 @@ def build_notes(
 
 | 檔案 | 字重 |
 |------|------|
-| `ENSFont-Regular.ttf`          | Regular           |
-| `ENSFont-Bold.ttf`             | Bold              |
-| `ENSFont-Italic.ttf`           | Italic            |
-| `ENSFont-BoldItalic.ttf`       | Bold Italic       |
-| `ENSFontMono-Regular.ttf`      | Regular Mono      |
-| `ENSFontMono-Bold.ttf`         | Bold Mono         |
-| `ENSFontMono-Italic.ttf`       | Italic Mono       |
-| `ENSFontMono-BoldItalic.ttf`   | Bold Italic Mono  |
+| `ENSFont-Regular.ttf`      | Regular      |
+| `ENSFont-Bold.ttf`         | Bold         |
+| `ENSFontMono-Regular.ttf`  | Regular Mono |
+| `ENSFontMono-Bold.ttf`     | Bold Mono    |
 
 下載 `ENSFont-{version}.zip` 取得所有字重。
 
