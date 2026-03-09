@@ -79,6 +79,7 @@ def build_notes(
 
     lxgw_url = f"https://github.com/lxgw/LxgwWenKai/releases/tag/{lxgw_tag}"
     nerd_url = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
+    jbsans_url = "https://www.jetbrains.com/lp/mono/"
 
     if lxgw_changed:
         lxgw_section = (
@@ -106,14 +107,15 @@ def build_notes(
 | 來源 | 版本 | 用途 |
 |------|------|------|
 | LXGW WenKai / LXGW WenKai Mono | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
-| MesloLGM Nerd Font + JetBrainsMono Nerd Font Mono | [{nerd_tag}]({nerd_url}) | ASCII 優先 + Nerd 圖標 |
+| JetBrains Sans（非等寬） | [JetBrains CDN]({jbsans_url}) | ENS Font ASCII 優先 |
+| NerdFontsSymbolsOnly + JetBrainsMono Nerd Font Mono | [{nerd_tag}]({nerd_url}) | PUA 圖標 + ENS Font Mono ASCII |
 
 ### 字元優先權
-1. **MesloLGM / JetBrainsMono Mono** — ASCII (U+0020–U+007E)、拉丁字元、Box Drawing、箭頭
+1. **JetBrains Sans（非等寬）/ JetBrainsMono Mono** — ASCII (U+0020–U+007E)、拉丁字元、Box Drawing、箭頭
 2. **Nerd Fonts** — PUA 圖標 (E000–F8FF)、Powerline 符號
 3. **LXGW WenKai** — CJK (U+4E00–U+9FFF)、平假名、片假名、全形標點
 
-> 對應規則：`ENS Font = LXGW WenKai + MesloLGMNerdFont`，`ENS Font Mono = LXGW WenKai Mono + JetBrainsMonoNerdFontMono`。
+> 對應規則：`ENS Font = LXGW WenKai + JetBrainsSans（Nerd 補丁）`，`ENS Font Mono = LXGW WenKai Mono + JetBrainsMonoNerdFontMono`。
 
 ### 字體檔案
 
@@ -132,11 +134,12 @@ def build_notes(
 
 ### 授權
 - 最終字體：[SIL OFL 1.1](https://openfontlicense.org)
-- ASCII/拉丁字形（MesloLGM / JetBrains Mono）：[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- ASCII/拉丁字形（JetBrains Sans）：[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- Mono ASCII/拉丁字形（JetBrains Mono）：[SIL OFL 1.1](https://openfontlicense.org)
 - PUA 圖標（Nerd Fonts）：[MIT License](https://github.com/ryanoasis/nerd-fonts/blob/master/LICENSE)
 
 保留字型名稱：**"ENS Font"** 與 **"Elegant Nerd Sino"**。
-原始保留名稱 "LXGW"、"霞鶩"、"Klee"、"Meslo" 均**未使用**於本衍生字體。
+原始保留名稱 "LXGW"、"霞鶩"、"Klee" 均**未使用**於本衍生字體。
 
 ### Contributors
 @enstw · [Claude](https://github.com/claude)

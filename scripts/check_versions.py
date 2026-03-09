@@ -10,9 +10,10 @@ Exit codes:
 GitHub Actions output variables written to $GITHUB_OUTPUT:
   VERSIONS_CHANGED  true | false
   NEW_VERSION       e.g. 1.2.0
-  GIT_TAG           e.g. v1.2.0_lxgw1521_meslo_jbm_nerd340
+  GIT_TAG           e.g. v1.2.0_lxgw1.521_jbsans_jbm_nerd3.4.0
   LXGW_TAG          e.g. v1.521
   NERD_TAG          e.g. v3.4.0
+  JBSANS_VERSION    e.g. 2.304 (scraped from JetBrains CDN, "unknown" if not found)
 
 Usage:
     GITHUB_TOKEN=... python scripts/check_versions.py \\
@@ -119,6 +120,42 @@ def compact_version(raw: str) -> str:
     return raw.lstrip("vV")
 
 
+def get_jetbrains_sans_version(source_url: str) -> str:
+    """
+    Scrape JetBrains homepage to detect the current JetBrains Sans version.
+    Extracts the version from the CDN URL path segment (e.g. .../jetbrains-sans/2.304/...).
+    Returns "unknown" on failure — non-fatal, build still proceeds.
+    """
+    import requests
+
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+    try:
+        resp = requests.get(source_url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        html = resp.text
+    except Exception as e:
+        print(f"WARNING: Could not fetch JetBrains homepage: {e}", file=sys.stderr)
+        return "unknown"
+
+    # Find any woff2 CDN URL containing "jetbrains-sans"
+    m = re.search(
+        r"https://[^\s\"']+/jetbrains-sans/v?(\d+[\.\d]+)/[^\s\"']+\.woff2",
+        html,
+        re.IGNORECASE,
+    )
+    if m:
+        return m.group(1)
+
+    print("WARNING: JetBrains Sans version not found in homepage HTML.", file=sys.stderr)
+    return "unknown"
+
+
 def build_git_tag(
     pkg_version: str,
     lxgw_tag: str,
@@ -129,11 +166,11 @@ def build_git_tag(
     Uses underscores to avoid the '+' character which can cause issues
     in some git clients and shell scripts.
 
-    Example: v1.2.0_lxgw1521_meslo_jbm_nerd340
+    Example: v1.2.0_lxgw1.521_jbsans_jbm_nerd3.4.0
     """
     lxgw_compact = compact_version(lxgw_tag)
     nerd_compact = compact_version(nerd_tag)
-    return f"v{pkg_version}_lxgw{lxgw_compact}_meslo_jbm_nerd{nerd_compact}"
+    return f"v{pkg_version}_lxgw{lxgw_compact}_jbsans_jbm_nerd{nerd_compact}"
 
 
 def set_gha_output(key: str, value: str) -> None:
@@ -180,7 +217,7 @@ def main():
     if args.bump_patch:
         current_pkg_ver = versions["packaging"]["version"]
         current_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
-        current_nerd = versions["upstream"]["meslo_nerd"]["tag"]
+        current_nerd = versions["upstream"]["nerd_fonts"]["tag"]
 
         new_pkg_ver = bump_patch(current_pkg_ver)
         new_git_tag = build_git_tag(new_pkg_ver, current_lxgw, current_nerd)
@@ -208,13 +245,15 @@ def main():
         sys.exit(0)
 
     current_lxgw_tag = versions["upstream"]["lxgw_wenkai"]["tag"]
-    current_nerd_tag = versions["upstream"]["meslo_nerd"]["tag"]
+    current_nerd_tag = versions["upstream"]["nerd_fonts"]["tag"]
     current_pkg_ver = versions["packaging"]["version"]
     lxgw_repo = versions["upstream"]["lxgw_wenkai"]["repo"]
-    nerd_repo = versions["upstream"]["meslo_nerd"]["repo"]
+    nerd_repo = versions["upstream"]["nerd_fonts"]["repo"]
+    jbsans_source = versions["upstream"]["jetbrains_sans"]["source_url"]
 
     print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}")
     print("Checking upstream releases...")
+    print("(JetBrains Sans version is scraped at build time by fetch_jbsans.py)")
 
     changed = False
     errors = []
@@ -236,14 +275,14 @@ def main():
         print(f"  WARNING: Could not check LXGW WenKai: {e}", file=sys.stderr)
         errors.append(f"LXGW WenKai check failed: {e}")
 
-    # --- Check Nerd Fonts (also carries MesloLGM) ---
+    # --- Check Nerd Fonts (carries NerdFontsSymbolsOnly + JetBrainsMono Nerd Font) ---
     try:
         nerd_rel = get_latest_release(nerd_repo, github_token)
         new_nerd_tag = nerd_rel["tag_name"]
         if new_nerd_tag != current_nerd_tag:
             print(f"  Nerd Fonts:  {current_nerd_tag} -> {new_nerd_tag}  [NEW]")
-            versions["upstream"]["meslo_nerd"]["tag"] = new_nerd_tag
-            versions["upstream"]["meslo_nerd"]["release_date"] = nerd_rel[
+            versions["upstream"]["nerd_fonts"]["tag"] = new_nerd_tag
+            versions["upstream"]["nerd_fonts"]["release_date"] = nerd_rel[
                 "published_at"
             ]
             changed = True
@@ -252,6 +291,20 @@ def main():
     except Exception as e:
         print(f"  WARNING: Could not check Nerd Fonts: {e}", file=sys.stderr)
         errors.append(f"Nerd Fonts check failed: {e}")
+
+    # --- Check JetBrains Sans (web scrape, informational only — build fetches it fresh) ---
+    try:
+        jbsans_ver = get_jetbrains_sans_version(jbsans_source)
+        prev_jbsans_ver = versions["upstream"]["jetbrains_sans"].get("version", "unknown")
+        if jbsans_ver != "unknown" and jbsans_ver != prev_jbsans_ver:
+            print(f"  JetBrains Sans: {prev_jbsans_ver} -> {jbsans_ver}  [NEW]")
+            versions["upstream"]["jetbrains_sans"]["version"] = jbsans_ver
+            changed = True
+        else:
+            print(f"  JetBrains Sans: {jbsans_ver}  [{'no change' if jbsans_ver != 'unknown' else 'version undetected'}]")
+    except Exception as e:
+        print(f"  WARNING: JetBrains Sans version check failed: {e}", file=sys.stderr)
+        # Non-fatal: JetBrains Sans is always re-fetched at build time
 
     if errors:
         print(
@@ -297,7 +350,7 @@ def main():
     # --- Bump packaging version and rebuild tag ---
     new_pkg_ver = bump_minor(current_pkg_ver)
     new_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
-    new_nerd = versions["upstream"]["meslo_nerd"]["tag"]
+    new_nerd = versions["upstream"]["nerd_fonts"]["tag"]
     new_git_tag = build_git_tag(
         new_pkg_ver,
         new_lxgw,

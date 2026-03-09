@@ -10,7 +10,7 @@
 # packaged into a ZIP archive and published as a GitHub Release.
 #
 # Upstream donor mapping:
-#   - ENS Font (non-mono): MesloLGM Nerd Font
+#   - ENS Font (non-mono): JetBrains Sans + NerdFontsSymbolsOnly (pre-patched by patch.py)
 #   - ENS Font Mono:       JetBrainsMono Nerd Font Mono
 #
 # Required secrets:
@@ -83,7 +83,7 @@ jobs:
             LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['lxgw_wenkai']['tag'])")
           fi
           if [ -z "$NERD_TAG" ]; then
-            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['meslo_nerd']['tag'])")
+            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['nerd_fonts']['tag'])")
           fi
 
           # Extract X.Y.Z from tag (strip leading 'v', take up to first '_')
@@ -159,24 +159,48 @@ jobs:
           test -f fonts/wenkai/LXGWWenKaiMono-Regular.ttf
           test -f fonts/wenkai/LXGWWenKaiMono-Medium.ttf
 
-      - name: Download Nerd Fonts archives (Meslo + JetBrainsMono)
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Fetch JetBrains Sans from CDN (non-mono donor, woff2 → TTF)
+        run: |
+          mkdir -p fonts/jetbrains_sans
+          python scripts/fetch_jbsans.py --output-dir fonts/jetbrains_sans
+          echo "JetBrains Sans TTFs:"
+          ls -lh fonts/jetbrains_sans/
+          test -f fonts/jetbrains_sans/JetBrainsSans-Regular.ttf
+          test -f fonts/jetbrains_sans/JetBrainsSans-Bold.ttf
+          test -f fonts/jetbrains_sans/JetBrainsSans-Italic.ttf
+          test -f fonts/jetbrains_sans/JetBrainsSans-BoldItalic.ttf
+
+      - name: Download Nerd Fonts archives (NerdFontsSymbolsOnly + JetBrainsMono)
         env:
           NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
-          mkdir -p fonts/meslo fonts/jetbrainsmono
+          mkdir -p fonts/nerd_symbols fonts/jetbrainsmono
 
-          MESLO_ARCHIVE="Meslo.tar.xz"
-          MESLO_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${MESLO_ARCHIVE}"
-          echo "Downloading ${MESLO_ARCHIVE} ..."
-          curl -fsSL "$MESLO_URL" -o "/tmp/${MESLO_ARCHIVE}"
-          echo "Extracting Meslo fonts ..."
-          tar -xJf "/tmp/${MESLO_ARCHIVE}" -C fonts/meslo/
-          echo "MesloLGM fonts found:"
-          ls fonts/meslo/MesloLGMNerdFont*.ttf
-          test -f fonts/meslo/MesloLGMNerdFont-Regular.ttf
-          test -f fonts/meslo/MesloLGMNerdFont-Bold.ttf
-          test -f fonts/meslo/MesloLGMNerdFont-Italic.ttf
-          test -f fonts/meslo/MesloLGMNerdFont-BoldItalic.ttf
+          SYMBOLS_ARCHIVE="NerdFontsSymbolsOnly.tar.xz"
+          SYMBOLS_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${SYMBOLS_ARCHIVE}"
+          echo "Downloading ${SYMBOLS_ARCHIVE} ..."
+          curl -fsSL "$SYMBOLS_URL" -o "/tmp/${SYMBOLS_ARCHIVE}"
+          echo "Extracting NerdFontsSymbolsOnly ..."
+          tar -xJf "/tmp/${SYMBOLS_ARCHIVE}" -C fonts/nerd_symbols/
+          echo "Nerd Fonts Symbols Only files:"
+          ls fonts/nerd_symbols/
+          # Locate the Regular TTF (filename may vary across nerd-fonts releases)
+          SYMBOLS_TTF=$(ls fonts/nerd_symbols/NerdFontsSymbolsOnly-Regular.ttf 2>/dev/null \
+                     || ls fonts/nerd_symbols/NerdFontsSymbolsNerdFont-Regular.ttf 2>/dev/null \
+                     || ls fonts/nerd_symbols/*.ttf | grep -i regular | head -1 \
+                     || ls fonts/nerd_symbols/*.ttf | head -1)
+          echo "Using symbols TTF: $SYMBOLS_TTF"
+          test -n "$SYMBOLS_TTF"
 
           JBM_ARCHIVE="JetBrainsMono.tar.xz"
           JBM_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${JBM_ARCHIVE}"
@@ -184,18 +208,45 @@ jobs:
           curl -fsSL "$JBM_URL" -o "/tmp/${JBM_ARCHIVE}"
           echo "Extracting JetBrains Mono fonts ..."
           tar -xJf "/tmp/${JBM_ARCHIVE}" -C fonts/jetbrainsmono/
-          echo "JetBrainsMono Nerd Font Mono fonts found:"
+          echo "JetBrainsMonoNerdFontMono fonts found:"
           ls fonts/jetbrainsmono/JetBrainsMonoNerdFontMono*.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Italic.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-BoldItalic.ttf
 
+      - name: Patch JetBrains Sans with Nerd Fonts symbols (non-mono pre-patch)
+        run: |
+          mkdir -p fonts/jetbrains_sans_patched
+
+          SYMBOLS_TTF=$(ls fonts/nerd_symbols/NerdFontsSymbolsOnly-Regular.ttf 2>/dev/null \
+                     || ls fonts/nerd_symbols/NerdFontsSymbolsNerdFont-Regular.ttf 2>/dev/null \
+                     || ls fonts/nerd_symbols/*.ttf | grep -i regular | head -1 \
+                     || ls fonts/nerd_symbols/*.ttf | head -1)
+          echo "Nerd symbols source: $SYMBOLS_TTF"
+
+          for STYLE in Regular Bold Italic BoldItalic; do
+            INPUT="fonts/jetbrains_sans/JetBrainsSans-${STYLE}.ttf"
+            OUTPUT="fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-${STYLE}.ttf"
+            echo "Patching ${STYLE} ..."
+            python scripts/patch.py --input "$INPUT" --symbols "$SYMBOLS_TTF" --output "$OUTPUT"
+          done
+
+          echo "Patched fonts:"
+          ls -lh fonts/jetbrains_sans_patched/
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Italic.ttf
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-BoldItalic.ttf
+
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v4
         with:
           name: font-sources
-          path: fonts/
+          path: |
+            fonts/wenkai/
+            fonts/jetbrains_sans_patched/
+            fonts/jetbrainsmono/
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -211,8 +262,8 @@ jobs:
         include:
           - style: Regular
             wenkai_file: LXGWWenKai-Regular.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGMNerdFont-Regular.ttf
+            donor_subdir: jetbrains_sans_patched
+            donor_file: JetBrainsSans-NerdPatched-Regular.ttf
             output_file: ENSFont-Regular.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -228,8 +279,8 @@ jobs:
           - style: Bold
             # WenKai has no Bold; Medium is the closest weight
             wenkai_file: LXGWWenKai-Medium.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGMNerdFont-Bold.ttf
+            donor_subdir: jetbrains_sans_patched
+            donor_file: JetBrainsSans-NerdPatched-Bold.ttf
             output_file: ENSFont-Bold.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -246,8 +297,8 @@ jobs:
           - style: Italic
             # WenKai has no italic; Regular used as CJK base
             wenkai_file: LXGWWenKai-Regular.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGMNerdFont-Italic.ttf
+            donor_subdir: jetbrains_sans_patched
+            donor_file: JetBrainsSans-NerdPatched-Italic.ttf
             output_file: ENSFont-Italic.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -264,8 +315,8 @@ jobs:
           - style: Bold Italic
             # WenKai has no Bold Italic; Medium used as CJK base
             wenkai_file: LXGWWenKai-Medium.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGMNerdFont-BoldItalic.ttf
+            donor_subdir: jetbrains_sans_patched
+            donor_file: JetBrainsSans-NerdPatched-BoldItalic.ttf
             output_file: ENSFont-BoldItalic.ttf
             family_name: ENS Font
             ps_family: ENSFont
@@ -312,7 +363,7 @@ jobs:
 
           python scripts/merge.py \
             --wenkai  "fonts/wenkai/${{ matrix.wenkai_file }}" \
-            --meslo   "fonts/${{ matrix.donor_subdir }}/${{ matrix.donor_file }}" \
+            --donor   "fonts/${{ matrix.donor_subdir }}/${{ matrix.donor_file }}" \
             --output  "dist/${{ matrix.output_file }}" \
             --family-name "${{ matrix.family_name }}" \
             --ps-family "${{ matrix.ps_family }}" \
@@ -341,7 +392,7 @@ jobs:
 
           # OFL reserved name checks
           violations = []
-          for reserved in ["LXGW", "霞鶩", "Klee", "Meslo"]:
+          for reserved in ["LXGW", "霞鶩", "Klee"]:
               if reserved in family or reserved in ps_name:
                   violations.append(f"Reserved name '{reserved}' found in font metadata!")
 

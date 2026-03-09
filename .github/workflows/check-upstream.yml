@@ -131,7 +131,7 @@ jobs:
             LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['lxgw_wenkai']['tag'])")
           fi
           if [ -z "$NERD_TAG" ]; then
-            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['meslo_nerd']['tag'])")
+            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['nerd_fonts']['tag'])")
           fi
           if [ -z "$VERSION" ]; then
             VERSION=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['version'])")

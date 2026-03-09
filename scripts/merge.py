@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-merge.py - Merges LXGWWenKai(*) + MesloLGMNerdFont(*) into ENS Font (Elegant Nerd Sino).
+merge.py - Merges LXGWWenKai(*) + donor font into ENS Font (Elegant Nerd Sino).
 
 Merge strategy:
   Base:   LXGW WenKai / WenKai Mono  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
-  Donor:  MesloLGMNerdFont  — ASCII, Latin, Box Drawing, PUA icons (Meslo + Nerd Fonts
-          are already bundled together in a single TTF, so no priority resolution needed)
+  Donor:  Non-mono: JetBrains Sans + Nerd Fonts (pre-patched by patch.py)
+          Mono:     JetBrainsMono Nerd Font Mono (ASCII, Latin, Box Drawing, PUA icons)
 
 All donor codepoints are transplanted into the base, overwriting any existing WenKai
 entry at the same codepoint. WenKai serves as the failsafe: only codepoints absent
@@ -14,7 +14,7 @@ from the donor are retained from WenKai.
 Usage:
     python scripts/merge.py \\
         --wenkai  fonts/wenkai/LXGWWenKai-Regular.ttf \\
-        --meslo   fonts/meslo/MesloLGMNerdFont-Regular.ttf \\
+        --donor   fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf \\
         --output  dist/ENSFont-Regular.ttf \\
         --style   Regular \\
         --version 1.0.0 \\
@@ -252,7 +252,7 @@ def set_font_metadata(
     Set all name table entries for OFL compliance and correct font identification.
 
     OFL 1.1 compliance requires:
-    - Do NOT use reserved names: "LXGW", "霞鶩", "Klee", "Meslo"
+    - Do NOT use reserved names: "LXGW", "霞鶩", "Klee"
     - Our reserved names: "ENS Font", "Elegant Nerd Sino"
 
     Name IDs set:
@@ -279,18 +279,19 @@ def set_font_metadata(
 
     copyright_notice = (
         "ENS Font (Elegant Nerd Sino) is a derivative work.\n"
-        "CJK glyphs: LXGW WenKai Mono (c) 2021 Xiaocheng Liao, SIL OFL 1.1\n"
-        "Latin/ASCII glyphs: MesloLGM (c) 2009-2013 Andre Berg, Apache License 2.0\n"
+        "CJK glyphs: LXGW WenKai / WenKai Mono (c) 2021 Xiaocheng Liao, SIL OFL 1.1\n"
+        "Latin/ASCII glyphs: JetBrains Sans (c) JetBrains s.r.o., Apache License 2.0\n"
+        "Mono Latin/ASCII glyphs: JetBrains Mono (c) JetBrains s.r.o., SIL OFL 1.1\n"
         "PUA icons: Nerd Fonts (c) 2014 Ryan L McIntyre, MIT License\n"
         f"Compiled font: (c) {datetime.now().year} enstw (https://ens.tw/font), SIL OFL 1.1\n"
         'Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".\n'
-        'The names "LXGW", "霞鶩", "Klee", and "Meslo" are NOT used by this derivative.'
+        'The names "LXGW", "霞鶩", and "Klee" are NOT used by this derivative.'
     )
 
     license_text = (
         "This Font Software is licensed under the SIL Open Font License, Version 1.1. "
         "This license is available with a FAQ at: https://openfontlicense.org. "
-        "ASCII/Latin glyphs derived from MesloLGM are used under the Apache License 2.0."
+        "ASCII/Latin glyphs (non-mono) derived from JetBrains Sans are used under the Apache License 2.0."
     )
 
     entries = [
@@ -339,10 +340,10 @@ def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
     """
     Set OS/2 and hhea metrics for terminal compatibility.
 
-    Rule: Always use MesloLGM as the metric reference because it defines
-    the monospace rhythm that terminal emulators expect. WenKai's CJK
-    characters will render double-width at the terminal level - this is
-    correct behavior and does not require metric adjustment.
+    Rule: Always use the donor font as the metric reference because it defines
+    the rhythm that terminal emulators expect. WenKai's CJK characters will
+    render double-width at the terminal level - this is correct behavior and
+    does not require metric adjustment.
 
     Key rules for terminal compatibility:
       hhea.ascent  == OS/2.usWinAscent  == OS/2.sTypoAscender
@@ -410,8 +411,9 @@ def validate_monospace_integrity(font: TTFont) -> None:
 
     if len(widths) > 1:
         log.warning(
-            f"MONOSPACE INTEGRITY VIOLATION: ASCII glyphs have {len(widths)} different "
-            f"advance widths: {sorted(widths)}. Check MesloLGM source integrity."
+            f"MONOSPACE INTEGRITY: ASCII glyphs have {len(widths)} different "
+            f"advance widths: {sorted(widths)}. Expected for non-mono builds; "
+            f"check donor source integrity for mono builds."
         )
     elif len(widths) == 1:
         log.info(
@@ -470,7 +472,7 @@ def rebuild_vmtx(font: TTFont) -> None:
 
 def merge_fonts(
     wenkai_path: str,
-    meslo_path: str,
+    donor_path: str,
     output_path: str,
     family_name: str,
     ps_family: str,
@@ -483,8 +485,8 @@ def merge_fonts(
     Main merge function.
 
     Base:  LXGW WenKai / WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
-    Donor: MesloLGMNerdFont  - ASCII, Latin, Box Drawing, PUA icons
-           (Meslo and Nerd Fonts are pre-bundled; single transplant pass)
+    Donor (non-mono): JetBrains Sans + Nerd Fonts (pre-patched by patch.py)
+    Donor (mono):     JetBrainsMono Nerd Font Mono - ASCII, Latin, Box Drawing, PUA icons
 
     Result is renamed to ENS Font for OFL compliance.
     """
@@ -492,27 +494,27 @@ def merge_fonts(
     log.info(f"Loading LXGW WenKai (base): {wenkai_path}")
     base = TTFont(wenkai_path)
 
-    log.info(f"Loading MesloLGM Nerd Font (donor): {meslo_path}")
-    meslo = TTFont(meslo_path)
+    log.info(f"Loading donor font: {donor_path}")
+    donor = TTFont(donor_path)
 
     # Step 0: UPM compatibility check (scale donor if needed)
     log.info("Step 0: Checking UPM compatibility...")
-    check_upm_compatibility(base, meslo)
+    check_upm_compatibility(base, donor)
 
     # Step 1: Ensure base has both BMP and full-Unicode cmap subtables
     log.info("Step 1: Ensuring cmap subtable coverage...")
     ensure_cmap_subtables(base)
 
-    # Step 2: Transplant all MesloLGMNerdFont glyphs into WenKai.
+    # Step 2: Transplant all donor glyphs into WenKai.
     # Donor codepoints overwrite WenKai entries; WenKai is the failsafe
     # and only retains codepoints the donor does not cover.
-    log.info("Step 2: Transplanting MesloLGMNerdFont glyphs (donor overrides WenKai)...")
-    meslo_count = transplant_glyphs(
-        src_font=meslo,
+    log.info("Step 2: Transplanting donor glyphs (donor overrides WenKai)...")
+    donor_count = transplant_glyphs(
+        src_font=donor,
         dst_font=base,
-        prefix="mes_",
+        prefix="don_",
     )
-    log.info(f"  -> {meslo_count} glyphs transplanted")
+    log.info(f"  -> {donor_count} glyphs transplanted")
 
     # Step 3: Rebuild glyph order for internal consistency
     log.info("Step 3: Rebuilding glyph order...")
@@ -525,16 +527,16 @@ def merge_fonts(
     log.info("Step 5: Setting font metadata (OFL compliance)...")
     set_font_metadata(base, family_name, ps_family, style, version, lxgw_ver, nerd_ver)
 
-    # Step 6: Set OS/2 and hhea metrics from MesloLGM reference
-    log.info("Step 6: Setting OS/2/hhea metrics from MesloLGM...")
-    set_os2_metrics(base, meslo)
+    # Step 6: Set OS/2 and hhea metrics from donor reference
+    log.info("Step 6: Setting OS/2/hhea metrics from donor...")
+    set_os2_metrics(base, donor)
 
     # Step 7: Validate monospace integrity
     log.info("Step 7: Validating monospace integrity...")
     validate_monospace_integrity(base)
 
     # Step 8: Rebuild vmtx so every glyph has a valid vertical metrics entry.
-    # After transplanting Meslo glyphs the vmtx entry count no longer matches
+    # After transplanting donor glyphs the vmtx entry count no longer matches
     # the enlarged glyph set, causing macOS validation warnings.  We rebuild
     # the table: advance height = vhea.advanceHeightMax for every glyph,
     # tsb = vhea.ascent - yMax (0 for glyphs without outlines).
@@ -554,10 +556,10 @@ def merge_fonts(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Merge LXGWWenKai(*) + MesloLGMNerdFont(*) into ENS Font"
+        description="Merge LXGWWenKai(*) + donor font into ENS Font"
     )
     parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKai*.ttf")
-    parser.add_argument("--meslo", required=True, help="Path to MesloLGMNerdFont*.ttf")
+    parser.add_argument("--donor", required=True, help="Path to donor TTF (JetBrains Sans NerdPatched or JetBrainsMono Nerd Font Mono)")
     parser.add_argument("--output", required=True, help="Output .ttf path")
     parser.add_argument(
         "--family-name",
@@ -588,7 +590,7 @@ def main():
 
     merge_fonts(
         wenkai_path=args.wenkai,
-        meslo_path=args.meslo,
+        donor_path=args.donor,
         output_path=args.output,
         family_name=args.family_name,
         ps_family=args.ps_family,

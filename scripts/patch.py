@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""
+patch.py - Grafts Nerd Fonts PUA glyphs from NerdFontsSymbolsOnly into a base TTF.
+
+This is the pre-patch step for ENS Font non-mono builds:
+  1. Input:   JetBrains Sans TTF (text-only, converted from woff2)
+  2. Symbols: NerdFontsSymbolsOnly TTF (PUA icons only, from nerd-fonts release)
+  3. Output:  Patched TTF with both JetBrains Sans text glyphs and Nerd Fonts icons
+
+The output is then passed to merge.py as the donor for the non-mono build.
+
+Usage:
+    python scripts/patch.py \\
+        --input   fonts/jetbrains_sans/JetBrainsSans-Regular.ttf \\
+        --symbols fonts/nerd_symbols/NerdFontsSymbolsOnly-Regular.ttf \\
+        --output  fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf
+"""
+
+import argparse
+import logging
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, os.path.dirname(__file__))
+from merge import (
+    check_upm_compatibility,
+    ensure_cmap_subtables,
+    fix_glyph_order,
+    rebuild_vmtx,
+    transplant_glyphs,
+)
+
+from fontTools.ttLib import TTFont
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log = logging.getLogger(__name__)
+
+
+def patch_font(input_path: str, symbols_path: str, output_path: str) -> None:
+    """
+    Graft all glyphs from NerdFontsSymbolsOnly into the base JetBrains Sans TTF.
+
+    NerdFontsSymbolsOnly contains only PUA icon glyphs — it is safe to transplant
+    all of its codepoints into JetBrains Sans without overwriting any text glyphs,
+    since there is no overlap between PUA ranges and JetBrains Sans's text coverage.
+    """
+    log.info(f"=== Nerd Fonts Patch: {Path(input_path).name} ===")
+
+    log.info(f"Loading base font: {input_path}")
+    base = TTFont(input_path)
+
+    log.info(f"Loading Nerd Fonts symbols: {symbols_path}")
+    symbols = TTFont(symbols_path)
+
+    log.info("Step 1: Checking UPM compatibility...")
+    check_upm_compatibility(base, symbols)
+
+    log.info("Step 2: Ensuring cmap subtable coverage (BMP format 4 + full Unicode format 12)...")
+    ensure_cmap_subtables(base)
+
+    log.info("Step 3: Transplanting Nerd Fonts PUA glyphs into JetBrains Sans...")
+    count = transplant_glyphs(src_font=symbols, dst_font=base, prefix="nrd_")
+    log.info(f"  -> {count} glyphs transplanted")
+
+    log.info("Step 4: Rebuilding glyph order for internal consistency...")
+    fix_glyph_order(base)
+
+    # Suppress post table glyph names — saves ~20% file size, not needed for intermediate file
+    base["post"].formatType = 3.0
+
+    if "vmtx" in base and "vhea" in base:
+        log.info("Step 5: Rebuilding vmtx for full glyph coverage...")
+        rebuild_vmtx(base)
+
+    output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    log.info(f"Step 6: Saving to {output_path} ...")
+    base.save(str(output))
+
+    size_kb = output.stat().st_size // 1024
+    log.info(f"=== Done: {output_path} ({size_kb:,} KB) ===")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Graft Nerd Fonts PUA glyphs into a base TTF (pre-patch step for ENS Font non-mono)"
+    )
+    parser.add_argument(
+        "--input", required=True,
+        help="Path to base TTF (e.g. JetBrainsSans-Regular.ttf)"
+    )
+    parser.add_argument(
+        "--symbols", required=True,
+        help="Path to NerdFontsSymbolsOnly TTF"
+    )
+    parser.add_argument(
+        "--output", required=True,
+        help="Output patched TTF path"
+    )
+    args = parser.parse_args()
+
+    patch_font(args.input, args.symbols, args.output)
+
+
+if __name__ == "__main__":
+    main()
