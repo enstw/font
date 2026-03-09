@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """
-fetch_jbsans.py - Scrapes JetBrains homepage to locate, download, and convert
-JetBrains Sans woff2 web fonts to TTF for use as ENS Font non-mono donor.
+fetch_jbsans.py - Downloads JetBrains Sans variable TTF from JetBrains CDN
+and instantiates static TTF files for each required weight/style.
 
-Strategy ("What You See Is What You Sign"):
-  1. Fetch raw HTML from https://www.jetbrains.com/
-  2. Extract CDN URLs for JetBrainsSans-*.woff2 via regex
-  3. Detect version from the CDN URL path
-  4. Download each woff2 and convert to TTF using fonttools
-  5. Apply fallbacks for any styles not found on the page
+Strategy:
+  1. Fetch JetBrains homepage HTML and locate the default-page CSS URL
+  2. Fetch that CSS and extract the variable font URL (contains version in path)
+  3. Download JetBrainsSans[wght].ttf directly (no woff2 conversion needed)
+  4. Instantiate static weights using fonttools.instancer:
+       Regular (wght=400), Bold (wght=700)
+  5. Copy upright files for Italic/BoldItalic (no italic axis in this font)
 
 Outputs (written to --output-dir):
   JetBrainsSans-Regular.ttf
-  JetBrainsSans-Bold.ttf      (fallback: copy of Regular if not found)
-  JetBrainsSans-Italic.ttf    (fallback: copy of Regular if not found)
-  JetBrainsSans-BoldItalic.ttf (fallback: copy of Bold if not found)
+  JetBrainsSans-Bold.ttf
+  JetBrainsSans-Italic.ttf      (copy of Regular — no italic axis available)
+  JetBrainsSans-BoldItalic.ttf  (copy of Bold   — no italic axis available)
 
 Prints "VERSION=<ver>" as the last output line for CI consumption.
 
@@ -26,11 +27,12 @@ import argparse
 import re
 import shutil
 import sys
-import tempfile
+from io import BytesIO
 from pathlib import Path
 
 import requests
 from fontTools.ttLib import TTFont
+from fontTools.varLib.instancer import instantiateVariableFont
 
 JETBRAINS_HOME = "https://www.jetbrains.com/"
 
@@ -42,76 +44,64 @@ HEADERS = {
     )
 }
 
-# Regex: match CDN URLs for any JetBrainsSans-*.woff2 file
-# Captures the style name (e.g. "Regular", "Bold") in group 1
-WOFF2_PATTERN = re.compile(
-    r"https://[a-zA-Z0-9\-\.]+/[a-zA-Z0-9\-\./]*/jetbrains-sans/[a-zA-Z0-9\-\./]*"
-    r"/JetBrainsSans-([A-Za-z]+)\.woff2",
-    re.IGNORECASE,
-)
+# Static instances to produce from the variable font
+WEIGHT_INSTANCES = {
+    "Regular": 400,
+    "Bold": 700,
+}
 
-STYLES = ["Regular", "Bold", "Italic", "BoldItalic"]
-
-# If a style is missing, copy from its fallback
-FALLBACKS = {
-    "Bold": "Regular",
+# Italic styles are copies of their upright counterparts
+# (JetBrains Sans has no italic axis)
+ITALIC_COPIES = {
     "Italic": "Regular",
     "BoldItalic": "Bold",
 }
 
+STYLES = ["Regular", "Bold", "Italic", "BoldItalic"]
 
-def fetch_homepage() -> str:
-    print(f"Fetching {JETBRAINS_HOME} ...")
-    resp = requests.get(JETBRAINS_HOME, headers=HEADERS, timeout=30)
+
+def fetch_text(url: str, label: str) -> str:
+    print(f"Fetching {label} ...")
+    resp = requests.get(url, headers=HEADERS, timeout=30)
     resp.raise_for_status()
     return resp.text
 
 
-def find_woff2_urls(html: str) -> dict:
-    """Return {style: url} dict from page HTML. First match per style wins."""
-    found = {}
-    for match in WOFF2_PATTERN.finditer(html):
-        style = match.group(1)
-        # Normalise common style name variants
-        style = {"Bolditalic": "BoldItalic"}.get(style, style)
-        if style not in found:
-            found[style] = match.group(0)
-            print(f"  Found {style}: {match.group(0)}")
-    return found
+def find_css_url(html: str) -> str | None:
+    """Extract the default-page CSS path from homepage HTML."""
+    m = re.search(r'"(/_assets/default-page\.[a-f0-9]+\.css)"', html)
+    return m.group(1) if m else None
 
 
-def extract_version(urls: dict) -> str:
-    """Extract version string from any CDN URL path segment."""
-    for url in urls.values():
-        # e.g. .../jetbrains-sans/2.304/JetBrainsSans-Regular.woff2
-        #   or .../jetbrains-sans/v2.304/...
-        m = re.search(r"/jetbrains-sans/v?(\d+[\.\d]+)/", url, re.IGNORECASE)
-        if m:
-            return m.group(1)
-        # Generic version-like segment
-        m = re.search(r"[/_]v?(\d+\.\d+(?:\.\d+)?)[/_]", url)
-        if m:
-            return m.group(1)
-    return "unknown"
+def find_variable_font_url(css: str) -> tuple[str, str]:
+    """
+    Extract variable font TTF URL and version from CSS.
+    The CSS @font-face references a woff2 URL containing the version in the path;
+    we swap .woff2 -> .ttf to download the plain TTF fallback directly.
+    Returns (ttf_url, version_string).
+    """
+    m = re.search(
+        r"(https://resources\.jetbrains\.com/storage/jetbrains-sans/google-fonts/"
+        r"(v[\d.]+)/variable/JetBrainsSans\[wght\]\.woff2)",
+        css,
+    )
+    if not m:
+        return "", "unknown"
+    version = m.group(2).lstrip("v")
+    ttf_url = m.group(1).replace(".woff2", ".ttf")
+    return ttf_url, version
 
 
-def download_woff2(url: str, dest: Path) -> None:
-    print(f"  Downloading {Path(url).name} ...")
+def download_bytes(url: str, label: str) -> bytes:
+    print(f"Downloading {label} ...")
     resp = requests.get(url, headers=HEADERS, timeout=60)
     resp.raise_for_status()
-    dest.write_bytes(resp.content)
-
-
-def convert_woff2_to_ttf(woff2_path: Path, ttf_path: Path) -> None:
-    font = TTFont(str(woff2_path))
-    font.flavor = None  # strip WOFF2 wrapper → plain TTF/OTF
-    font.save(str(ttf_path))
-    print(f"  Converted → {ttf_path.name} ({ttf_path.stat().st_size // 1024} KB)")
+    return resp.content
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Fetch JetBrains Sans woff2 from JetBrains CDN and convert to TTF"
+        description="Fetch JetBrains Sans variable TTF and instantiate static weights"
     )
     parser.add_argument(
         "--output-dir", default="fonts/jetbrains_sans",
@@ -122,48 +112,47 @@ def main():
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    html = fetch_homepage()
-    urls = find_woff2_urls(html)
-
-    if not urls:
-        print("ERROR: No JetBrains Sans woff2 URLs found on homepage.", file=sys.stderr)
+    # Step 1: locate the CSS file URL from homepage
+    html = fetch_text(JETBRAINS_HOME, "JetBrains homepage")
+    css_path = find_css_url(html)
+    if not css_path:
+        print("ERROR: Could not find default-page CSS URL in homepage.", file=sys.stderr)
         sys.exit(1)
 
-    version = extract_version(urls)
+    css_url = f"https://www.jetbrains.com{css_path}"
+    css = fetch_text(css_url, f"CSS ({css_path.split('/')[-1]})")
+
+    # Step 2: extract variable font TTF URL and version
+    ttf_url, version = find_variable_font_url(css)
+    if not ttf_url:
+        print("ERROR: Could not find JetBrains Sans variable font URL in CSS.", file=sys.stderr)
+        sys.exit(1)
+
     print(f"Detected JetBrains Sans version: {version}")
+    print(f"Variable font URL: {ttf_url}")
 
-    converted: dict[str, Path] = {}
+    # Step 3: download variable TTF
+    ttf_bytes = download_bytes(ttf_url, "JetBrainsSans[wght].ttf")
+    var_font = TTFont(BytesIO(ttf_bytes))
 
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        for style in STYLES:
-            url = urls.get(style)
-            if not url:
-                continue
-            woff2_file = tmp_path / f"JetBrainsSans-{style}.woff2"
-            ttf_file = out_dir / f"JetBrainsSans-{style}.ttf"
-            try:
-                download_woff2(url, woff2_file)
-                convert_woff2_to_ttf(woff2_file, ttf_file)
-                converted[style] = ttf_file
-            except Exception as e:
-                print(f"  WARNING: Failed to fetch {style}: {e}", file=sys.stderr)
+    # Step 4: instantiate static weights
+    print("Instantiating static weights...")
+    produced: dict[str, Path] = {}
+    for style, weight in WEIGHT_INSTANCES.items():
+        print(f"  {style} (wght={weight})")
+        static = instantiateVariableFont(var_font, {"wght": weight})
+        out_path = out_dir / f"JetBrainsSans-{style}.ttf"
+        static.save(str(out_path))
+        print(f"    -> {out_path.name} ({out_path.stat().st_size // 1024} KB)")
+        produced[style] = out_path
 
-    if "Regular" not in converted:
-        print("ERROR: Could not obtain JetBrainsSans-Regular.ttf (required).", file=sys.stderr)
-        sys.exit(1)
-
-    # Apply fallbacks for any missing styles
-    for style, fallback in FALLBACKS.items():
-        if style not in converted:
-            src = converted.get(fallback)
-            if src:
-                dst = out_dir / f"JetBrainsSans-{style}.ttf"
-                shutil.copy2(str(src), str(dst))
-                converted[style] = dst
-                print(f"  Fallback: {style} <- {fallback}")
-            else:
-                print(f"  WARNING: No fallback available for {style}", file=sys.stderr)
+    # Step 5: copy upright fonts for italic styles (no italic axis)
+    for italic_style, base_style in ITALIC_COPIES.items():
+        src = produced[base_style]
+        dst = out_dir / f"JetBrainsSans-{italic_style}.ttf"
+        shutil.copy2(str(src), str(dst))
+        print(f"  {italic_style} <- copy of {base_style} (no italic axis)")
+        produced[italic_style] = dst
 
     print(f"\nOutput in {out_dir}/:")
     for style in STYLES:

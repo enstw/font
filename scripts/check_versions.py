@@ -122,8 +122,12 @@ def compact_version(raw: str) -> str:
 
 def get_jetbrains_sans_version(source_url: str) -> str:
     """
-    Scrape JetBrains homepage to detect the current JetBrains Sans version.
-    Extracts the version from the CDN URL path segment (e.g. .../jetbrains-sans/2.304/...).
+    Detect the current JetBrains Sans version from the JetBrains CDN.
+
+    The version is embedded in the variable font URL inside the default-page CSS
+    (e.g. .../jetbrains-sans/google-fonts/v1.309/variable/JetBrainsSans[wght].woff2).
+    The homepage HTML itself does not contain font URLs (they are in CSS files).
+
     Returns "unknown" on failure — non-fatal, build still proceeds.
     """
     import requests
@@ -136,6 +140,7 @@ def get_jetbrains_sans_version(source_url: str) -> str:
         )
     }
     try:
+        # Step 1: fetch homepage to locate the default-page CSS URL
         resp = requests.get(source_url, headers=headers, timeout=30)
         resp.raise_for_status()
         html = resp.text
@@ -143,16 +148,30 @@ def get_jetbrains_sans_version(source_url: str) -> str:
         print(f"WARNING: Could not fetch JetBrains homepage: {e}", file=sys.stderr)
         return "unknown"
 
-    # Find any woff2 CDN URL containing "jetbrains-sans"
+    m = re.search(r'"(/_assets/default-page\.[a-f0-9]+\.css)"', html)
+    if not m:
+        print("WARNING: Could not find default-page CSS URL in JetBrains homepage.", file=sys.stderr)
+        return "unknown"
+
+    css_url = f"https://www.jetbrains.com{m.group(1)}"
+    try:
+        # Step 2: fetch CSS and extract version from the variable font URL
+        resp = requests.get(css_url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        css = resp.text
+    except Exception as e:
+        print(f"WARNING: Could not fetch JetBrains CSS: {e}", file=sys.stderr)
+        return "unknown"
+
     m = re.search(
-        r"https://[^\s\"']+/jetbrains-sans/v?(\d+[\.\d]+)/[^\s\"']+\.woff2",
-        html,
-        re.IGNORECASE,
+        r"resources\.jetbrains\.com/storage/jetbrains-sans/google-fonts/"
+        r"(v[\d.]+)/variable/JetBrainsSans",
+        css,
     )
     if m:
-        return m.group(1)
+        return m.group(1).lstrip("v")
 
-    print("WARNING: JetBrains Sans version not found in homepage HTML.", file=sys.stderr)
+    print("WARNING: JetBrains Sans version not found in CSS.", file=sys.stderr)
     return "unknown"
 
 
