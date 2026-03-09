@@ -35,14 +35,17 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
 - **cmap format 4 is BMP-only.** Non-BMP codepoints (>U+FFFF, e.g. Nerd
   Fonts Plane 15 PUA) must go into format 12 subtables only. Putting them
   in format 4 causes `OverflowError` at compile time.
-- **vmtx must be rebuilt after glyph transplant.** Transplanting ~11,646
-  Meslo glyphs leaves vmtx with fewer entries than the total glyph count,
-  causing macOS Font Book validation warnings. Rebuild vmtx for every glyph
-  using `advanceHeight=vhea.advanceHeightMax`, `tsb=vhea.ascent-glyph.yMax`.
-- **Single-pass transplant, donor overrides WenKai.** MesloLGMNerdFont
-  already bundles Meslo + Nerd Fonts; no range filtering needed. Iterate
-  donor cmap directly and overwrite any overlap. WenKai-only glyphs (CJK)
-  are preserved naturally since they don't exist in donor cmap.
+- **vmtx must be rebuilt after glyph transplant.** Transplanting donor
+  glyphs leaves vmtx with fewer entries than the total glyph count, causing
+  macOS Font Book validation warnings. Rebuild vmtx for every glyph using
+  `advanceHeight=vhea.advanceHeightMax`, `tsb=vhea.ascent-glyph.yMax`.
+- **Single-pass transplant, donor overrides base unconditionally.** Iterate
+  donor cmap and overwrite any overlap — no range filtering, no code-page
+  logic. Base-only glyphs (CJK from WenKai) are preserved naturally since
+  they don't exist in the donor cmap. This applies to both `merge.py`
+  (donor overrides WenKai) and `patch.py` (NerdFontsSymbolsOnly overrides
+  JetBrains Sans). Do NOT add range filtering; the fonts naturally partition
+  the Unicode space.
 - **Glyph order must be sorted for reproducible binary output.** Sort new
   glyphs in `fix_glyph_order` to avoid non-deterministic TTF diffs.
 - **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold and
@@ -83,7 +86,7 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
 ### OFL compliance
 
 - **Reserved font names must not appear in family or PostScript name.**
-  Prohibited: `LXGW`, `霞鶩`, `Klee`, `Meslo`. The OFL compliance check in
+  Prohibited: `LXGW`, `霞鶩`, `Klee`. The OFL compliance check in
   `build-release.yml` enforces this after every build.
 - **Upstream `@` mentions in release notes must be escaped.** Replace `@`
   with fullwidth `＠` to avoid accidentally pinging GitHub users in release
