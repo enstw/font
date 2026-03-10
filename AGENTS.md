@@ -28,6 +28,14 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
 
 ---
 
+## Font Styles & Weights
+
+- **No Italics.** Upstream JetBrains Sans does not provide an italic axis. Do **NOT** attempt to generate, copy, or include Italic or Bold Italic styles for the non-mono ENS Font.
+- **Supported Weights:** Only **Regular** and **Bold** are supported for both ENS Font and ENS Font Mono.
+- **Bold CJK:** Since LXGW WenKai lacks a Bold weight, use **Medium** as the CJK base for all Bold styles.
+
+---
+
 ## Lessons learned
 
 ### Font merge (`scripts/merge.py`)
@@ -48,8 +56,7 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   the Unicode space.
 - **Glyph order must be sorted for reproducible binary output.** Sort new
   glyphs in `fix_glyph_order` to avoid non-deterministic TTF diffs.
-- **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold and
-  Bold Italic styles; use Regular as the CJK base for Italic.
+- **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold styles; use Regular as the CJK base for others.
 - **compact_version must preserve dots.** `v3.4.0` and `v34.0` must produce
   distinct git tag tokens — strip the leading `v` but keep dots intact.
   (Previous bug: both mapped to `"340"`.)

@@ -12,13 +12,13 @@ entry at the same codepoint. WenKai serves as the failsafe: only codepoints abse
 from the donor are retained from WenKai.
 
 Usage:
-    python scripts/merge.py \\
-        --wenkai  fonts/wenkai/LXGWWenKai-Regular.ttf \\
-        --donor   fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf \\
-        --output  dist/ENSFont-Regular.ttf \\
-        --style   Regular \\
-        --version 1.0.0 \\
-        --lxgw-version 1.521 \\
+    python scripts/merge.py \
+        --wenkai  fonts/wenkai/LXGWWenKai-Regular.ttf \
+        --donor   fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf \
+        --output  dist/ENSFont-Regular.ttf \
+        --style   Regular \
+        --version 1.0.0 \
+        --lxgw-version 1.521 \
         --nerd-version 3.4.0
 """
 
@@ -480,6 +480,7 @@ def merge_fonts(
     version: str,
     lxgw_ver: str,
     nerd_ver: str,
+    is_mono: bool = False,
 ) -> None:
     """
     Main merge function.
@@ -531,9 +532,12 @@ def merge_fonts(
     log.info("Step 6: Setting OS/2/hhea metrics from donor...")
     set_os2_metrics(base, donor)
 
-    # Step 7: Validate monospace integrity
-    log.info("Step 7: Validating monospace integrity...")
-    validate_monospace_integrity(base)
+    # Step 7: Validate monospace integrity (only for mono builds)
+    if is_mono:
+        log.info("Step 7: Validating monospace integrity...")
+        validate_monospace_integrity(base)
+    else:
+        log.info("Step 7: Skipping monospace integrity check (non-mono build)")
 
     # Step 8: Rebuild vmtx so every glyph has a valid vertical metrics entry.
     # After transplanting donor glyphs the vmtx entry count no longer matches
@@ -586,6 +590,7 @@ def main():
     parser.add_argument(
         "--nerd-version", required=True, help="Nerd Fonts upstream version"
     )
+    parser.add_argument("--mono", action="store_true", help="Assert that the output should be monospaced")
     args = parser.parse_args()
 
     merge_fonts(
@@ -598,6 +603,7 @@ def main():
         version=args.version,
         lxgw_ver=args.lxgw_version,
         nerd_ver=args.nerd_version,
+        is_mono=args.mono,
     )
 
 

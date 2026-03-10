@@ -259,6 +259,7 @@ jobs:
             donor_subdir: jetbrains_sans_patched
             donor_file: JetBrainsSans-NerdPatched-Regular.ttf
             output_file: ENSFont-Regular.ttf
+            is_mono: false
             family_name: ENS Font
             ps_family: ENSFont
 
@@ -267,6 +268,7 @@ jobs:
             donor_subdir: jetbrainsmono
             donor_file: JetBrainsMonoNerdFontMono-Regular.ttf
             output_file: ENSFontMono-Regular.ttf
+            is_mono: true
             family_name: ENS Font Mono
             ps_family: ENSFontMono
 
@@ -276,6 +278,7 @@ jobs:
             donor_subdir: jetbrains_sans_patched
             donor_file: JetBrainsSans-NerdPatched-Bold.ttf
             output_file: ENSFont-Bold.ttf
+            is_mono: false
             family_name: ENS Font
             ps_family: ENSFont
 
@@ -285,6 +288,7 @@ jobs:
             donor_subdir: jetbrainsmono
             donor_file: JetBrainsMonoNerdFontMono-Bold.ttf
             output_file: ENSFontMono-Bold.ttf
+            is_mono: true
             family_name: ENS Font Mono
             ps_family: ENSFontMono
 
@@ -328,7 +332,8 @@ jobs:
             --style   "${{ matrix.style }}" \
             --version "$VERSION" \
             --lxgw-version "$LXGW_VER" \
-            --nerd-version "$NERD_VER"
+            --nerd-version "$NERD_VER" \
+            $(if [ "${{ matrix.is_mono }}" = "true" ]; then echo "--mono"; fi)
 
       - name: Verify OFL compliance
         run: |
