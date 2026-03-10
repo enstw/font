@@ -28,14 +28,6 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
 
 ---
 
-## Font Styles & Weights
-
-- **No Italics.** Upstream JetBrains Sans does not provide an italic axis. Do **NOT** attempt to generate, copy, or include Italic or Bold Italic styles for the non-mono ENS Font.
-- **Supported Weights:** Only **Regular** and **Bold** are supported for both ENS Font and ENS Font Mono.
-- **Bold CJK:** Since LXGW WenKai lacks a Bold weight, use **Medium** as the CJK base for all Bold styles.
-
----
-
 ## Lessons learned
 
 ### Font merge (`scripts/merge.py`)
