@@ -8,14 +8,12 @@ Strategy:
   2. Fetch that CSS and extract the variable font URL (contains version in path)
   3. Download JetBrainsSans[wght].ttf directly (no woff2 conversion needed)
   4. Instantiate static weights using fonttools.instancer:
-       Regular (wght=400), Bold (wght=700)
-  5. Copy upright files for Italic/BoldItalic (no italic axis in this font)
+       Light (wght=300), Regular (wght=400), Bold (wght=700)
 
 Outputs (written to --output-dir):
+  JetBrainsSans-Light.ttf
   JetBrainsSans-Regular.ttf
   JetBrainsSans-Bold.ttf
-  JetBrainsSans-Italic.ttf      (copy of Regular — no italic axis available)
-  JetBrainsSans-BoldItalic.ttf  (copy of Bold   — no italic axis available)
 
 Prints "VERSION=<ver>" as the last output line for CI consumption.
 
@@ -45,11 +43,12 @@ HEADERS = {
 
 # Static instances to produce from the variable font
 WEIGHT_INSTANCES = {
+    "Light": 300,
     "Regular": 400,
     "Bold": 700,
 }
 
-STYLES = ["Regular", "Bold"]
+STYLES = ["Light", "Regular", "Bold"]
 
 
 def fetch_text(url: str, label: str) -> str:

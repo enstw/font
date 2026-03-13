@@ -48,7 +48,7 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   the Unicode space.
 - **Glyph order must be sorted for reproducible binary output.** Sort new
   glyphs in `fix_glyph_order` to avoid non-deterministic TTF diffs.
-- **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold styles; use Regular as the CJK base for others.
+- **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold styles; use Light as the CJK base for Light styles; use Regular as the CJK base for others.
 - **compact_version must preserve dots.** `v3.4.0` and `v34.0` must produce
   distinct git tag tokens — strip the leading `v` but keep dots intact.
   (Previous bug: both mapped to `"340"`.)

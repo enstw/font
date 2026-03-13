@@ -271,7 +271,7 @@ def set_font_metadata(
     """
     name_table = font["name"]
 
-    ps_style = style.replace(" ", "")  # "BoldItalic" etc.
+    ps_style = style.replace(" ", "")
     full_name = f"{family_name} {style}"
     ps_name = f"{ps_family}-{ps_style}"
     version_str = f"Version {version}; lxgw{lxgw_ver}; nerd{nerd_ver}"
@@ -578,7 +578,7 @@ def main():
     parser.add_argument(
         "--style",
         required=True,
-        choices=["Regular", "Bold", "Italic", "Bold Italic"],
+        choices=["Light", "Regular", "Bold"],
         help="Font style",
     )
     parser.add_argument(

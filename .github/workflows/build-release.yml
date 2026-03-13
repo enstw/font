@@ -6,7 +6,7 @@
 #   - repository_dispatch (event: upstream-updated) from check-upstream.yml
 #   - workflow_dispatch for manual builds
 #
-# Produces four TTF files: (Regular, Bold) x (ENS Font, ENS Font Mono)
+# Produces six TTF files: (Light, Regular, Bold) x (ENS Font, ENS Font Mono)
 # packaged into a ZIP archive and published as a GitHub Release.
 #
 # Upstream donor mapping:
@@ -21,7 +21,7 @@
 #       |
 #   download-fonts
 #       |
-#   build (matrix x4, parallel)
+#   build (matrix x6, parallel)
 #       |
 #   release
 
@@ -144,7 +144,7 @@ jobs:
           mkdir -p fonts/wenkai
           BASE_URL="https://github.com/lxgw/LxgwWenKai/releases/download/${LXGW_TAG}"
           # Both WenKai and WenKai Mono ship Regular/Medium/Light (no Bold).
-          # Medium is used as the CJK base for Bold/Bold Italic styles.
+          # Medium is used as the CJK base for Bold styles.
           for VARIANT in Regular Medium Light; do
             for FAMILY in LXGWWenKai LXGWWenKaiMono; do
               FILE="${FAMILY}-${VARIANT}.ttf"
@@ -154,8 +154,10 @@ jobs:
           done
           echo "LXGW WenKai downloads:"
           ls -lh fonts/wenkai/
+          test -f fonts/wenkai/LXGWWenKai-Light.ttf
           test -f fonts/wenkai/LXGWWenKai-Regular.ttf
           test -f fonts/wenkai/LXGWWenKai-Medium.ttf
+          test -f fonts/wenkai/LXGWWenKaiMono-Light.ttf
           test -f fonts/wenkai/LXGWWenKaiMono-Regular.ttf
           test -f fonts/wenkai/LXGWWenKaiMono-Medium.ttf
 
@@ -175,6 +177,7 @@ jobs:
           python scripts/fetch_jbsans.py --output-dir fonts/jetbrains_sans
           echo "JetBrains Sans TTFs:"
           ls -lh fonts/jetbrains_sans/
+          test -f fonts/jetbrains_sans/JetBrainsSans-Light.ttf
           test -f fonts/jetbrains_sans/JetBrainsSans-Regular.ttf
           test -f fonts/jetbrains_sans/JetBrainsSans-Bold.ttf
 
@@ -208,6 +211,7 @@ jobs:
           tar -xJf "/tmp/${JBM_ARCHIVE}" -C fonts/jetbrainsmono/
           echo "JetBrainsMonoNerdFontMono fonts found:"
           ls fonts/jetbrainsmono/JetBrainsMonoNerdFontMono*.ttf
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Light.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf
           test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf
 
@@ -221,7 +225,7 @@ jobs:
                      || ls fonts/nerd_symbols/*.ttf | head -1)
           echo "Nerd symbols source: $SYMBOLS_TTF"
 
-          for STYLE in Regular Bold; do
+          for STYLE in Light Regular Bold; do
             INPUT="fonts/jetbrains_sans/JetBrainsSans-${STYLE}.ttf"
             OUTPUT="fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-${STYLE}.ttf"
             echo "Patching ${STYLE} ..."
@@ -230,6 +234,7 @@ jobs:
 
           echo "Patched fonts:"
           ls -lh fonts/jetbrains_sans_patched/
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Light.ttf
           test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf
           test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf
 
@@ -244,7 +249,7 @@ jobs:
           retention-days: 1
 
   # ---------------------------------------------------------------------------
-  # Job 3: Build merged fonts (8-way matrix, runs in parallel)
+  # Job 3: Build merged fonts (6-way matrix, runs in parallel)
   # ---------------------------------------------------------------------------
   build:
     needs: [resolve-params, download-fonts]
@@ -254,6 +259,24 @@ jobs:
       fail-fast: false # Build all styles even if one fails
       matrix:
         include:
+          - style: Light
+            wenkai_file: LXGWWenKai-Light.ttf
+            donor_subdir: jetbrains_sans_patched
+            donor_file: JetBrainsSans-NerdPatched-Light.ttf
+            output_file: ENSFont-Light.ttf
+            is_mono: false
+            family_name: ENS Font
+            ps_family: ENSFont
+
+          - style: Light
+            wenkai_file: LXGWWenKaiMono-Light.ttf
+            donor_subdir: jetbrainsmono
+            donor_file: JetBrainsMonoNerdFontMono-Light.ttf
+            output_file: ENSFontMono-Light.ttf
+            is_mono: true
+            family_name: ENS Font Mono
+            ps_family: ENSFontMono
+
           - style: Regular
             wenkai_file: LXGWWenKai-Regular.ttf
             donor_subdir: jetbrains_sans_patched
@@ -456,6 +479,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
+            dist/ENSFont-Light.ttf
+            dist/ENSFontMono-Light.ttf
             dist/ENSFont-Regular.ttf
             dist/ENSFontMono-Regular.ttf
             dist/ENSFont-Bold.ttf
