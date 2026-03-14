@@ -10,9 +10,11 @@ Exit codes:
 GitHub Actions output variables written to $GITHUB_OUTPUT:
   VERSIONS_CHANGED  true | false
   NEW_VERSION       e.g. 1.2.0
-  GIT_TAG           e.g. v1.2.0_lxgw1.521_jbsans_jbm_nerd3.4.0
+  GIT_TAG           e.g. v1.2.0_lxgw1.521_jbsans_jbm2.304_nerd3.4.0
   LXGW_TAG          e.g. v1.521
   NERD_TAG          e.g. v3.4.0
+  JBM_TAG           e.g. v2.304
+  PREV_JBM_TAG      e.g. v2.304 (previous JBM tag for change detection)
   JBSANS_VERSION    e.g. 2.304 (scraped from JetBrains CDN, "unknown" if not found)
 
 Usage:
@@ -178,6 +180,7 @@ def get_jetbrains_sans_version(source_url: str) -> str:
 def build_git_tag(
     pkg_version: str,
     lxgw_tag: str,
+    jbm_tag: str,
     nerd_tag: str,
 ) -> str:
     """
@@ -185,11 +188,12 @@ def build_git_tag(
     Uses underscores to avoid the '+' character which can cause issues
     in some git clients and shell scripts.
 
-    Example: v1.2.0_lxgw1.521_jbsans_jbm_nerd3.4.0
+    Example: v1.2.0_lxgw1.521_jbsans_jbm2.304_nerd3.4.0
     """
     lxgw_compact = compact_version(lxgw_tag)
+    jbm_compact = compact_version(jbm_tag)
     nerd_compact = compact_version(nerd_tag)
-    return f"v{pkg_version}_lxgw{lxgw_compact}_jbsans_jbm_nerd{nerd_compact}"
+    return f"v{pkg_version}_lxgw{lxgw_compact}_jbsans_jbm{jbm_compact}_nerd{nerd_compact}"
 
 
 def set_gha_output(key: str, value: str) -> None:
@@ -237,9 +241,10 @@ def main():
         current_pkg_ver = versions["packaging"]["version"]
         current_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
         current_nerd = versions["upstream"]["nerd_fonts"]["tag"]
+        current_jbm = versions["upstream"]["jetbrains_mono"]["tag"]
 
         new_pkg_ver = bump_patch(current_pkg_ver)
-        new_git_tag = build_git_tag(new_pkg_ver, current_lxgw, current_nerd)
+        new_git_tag = build_git_tag(new_pkg_ver, current_lxgw, current_jbm, current_nerd)
 
         print(f"Force rebuild: bumping patch {current_pkg_ver} -> {new_pkg_ver}")
         print(f"New git tag: {new_git_tag}")
@@ -261,16 +266,19 @@ def main():
         set_gha_output("GIT_TAG", new_git_tag)
         set_gha_output("LXGW_TAG", current_lxgw)
         set_gha_output("NERD_TAG", current_nerd)
+        set_gha_output("JBM_TAG", current_jbm)
         sys.exit(0)
 
     current_lxgw_tag = versions["upstream"]["lxgw_wenkai"]["tag"]
     current_nerd_tag = versions["upstream"]["nerd_fonts"]["tag"]
+    current_jbm_tag = versions["upstream"]["jetbrains_mono"]["tag"]
     current_pkg_ver = versions["packaging"]["version"]
     lxgw_repo = versions["upstream"]["lxgw_wenkai"]["repo"]
     nerd_repo = versions["upstream"]["nerd_fonts"]["repo"]
+    jbm_repo = versions["upstream"]["jetbrains_mono"]["repo"]
     jbsans_source = versions["upstream"]["jetbrains_sans"]["source_url"]
 
-    print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}")
+    print(f"Current versions: lxgw={current_lxgw_tag}, jbm={current_jbm_tag}, nerd={current_nerd_tag}")
     print("Checking upstream releases...")
     print("(JetBrains Sans version is scraped at build time by fetch_jbsans.py)")
 
@@ -310,6 +318,23 @@ def main():
     except Exception as e:
         print(f"  WARNING: Could not check Nerd Fonts: {e}", file=sys.stderr)
         errors.append(f"Nerd Fonts check failed: {e}")
+
+    # --- Check JetBrains Mono ---
+    try:
+        jbm_rel = get_latest_release(jbm_repo, github_token)
+        new_jbm_tag = jbm_rel["tag_name"]
+        if new_jbm_tag != current_jbm_tag:
+            print(f"  JetBrains Mono: {current_jbm_tag} -> {new_jbm_tag}  [NEW]")
+            versions["upstream"]["jetbrains_mono"]["tag"] = new_jbm_tag
+            versions["upstream"]["jetbrains_mono"]["release_date"] = jbm_rel[
+                "published_at"
+            ]
+            changed = True
+        else:
+            print(f"  JetBrains Mono: {current_jbm_tag}  [no change]")
+    except Exception as e:
+        print(f"  WARNING: Could not check JetBrains Mono: {e}", file=sys.stderr)
+        errors.append(f"JetBrains Mono check failed: {e}")
 
     # --- Check JetBrains Sans (web scrape, informational only — build fetches it fresh) ---
     try:
@@ -358,8 +383,10 @@ def main():
                 set_gha_output("GIT_TAG", current_git_tag)
                 set_gha_output("LXGW_TAG", current_lxgw_tag)
                 set_gha_output("NERD_TAG", current_nerd_tag)
+                set_gha_output("JBM_TAG", current_jbm_tag)
                 set_gha_output("PREV_LXGW_TAG", "")
                 set_gha_output("PREV_NERD_TAG", "")
+                set_gha_output("PREV_JBM_TAG", "")
                 sys.exit(1)
 
         print("No upstream changes detected. Build not triggered.")
@@ -370,9 +397,11 @@ def main():
     new_pkg_ver = bump_minor(current_pkg_ver)
     new_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
     new_nerd = versions["upstream"]["nerd_fonts"]["tag"]
+    new_jbm = versions["upstream"]["jetbrains_mono"]["tag"]
     new_git_tag = build_git_tag(
         new_pkg_ver,
         new_lxgw,
+        new_jbm,
         new_nerd,
     )
 
@@ -383,6 +412,7 @@ def main():
     # upstream actually changed without having to parse the git tag string.
     versions["packaging"]["prev_lxgw_tag"] = current_lxgw_tag
     versions["packaging"]["prev_nerd_tag"] = current_nerd_tag
+    versions["packaging"]["prev_jbm_tag"] = current_jbm_tag
     versions["packaging"]["version"] = new_pkg_ver
     versions["packaging"]["last_built"] = datetime.now(timezone.utc).isoformat()
     versions["packaging"]["git_tag"] = new_git_tag
@@ -402,8 +432,10 @@ def main():
     set_gha_output("GIT_TAG", new_git_tag)
     set_gha_output("LXGW_TAG", new_lxgw)
     set_gha_output("NERD_TAG", new_nerd)
+    set_gha_output("JBM_TAG", new_jbm)
     set_gha_output("PREV_LXGW_TAG", current_lxgw_tag)
     set_gha_output("PREV_NERD_TAG", current_nerd_tag)
+    set_gha_output("PREV_JBM_TAG", current_jbm_tag)
 
     sys.exit(1)  # Exit code 1 = changes found = trigger build workflow
 

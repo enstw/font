@@ -2,19 +2,22 @@
 """
 build_release_notes.py - Assembles the GitHub Release body for ENS Font.
 
-Fetches upstream changelogs from LXGW WenKai and Nerd Fonts releases,
-then combines them with ENS Font metadata into a single Markdown document.
+Fetches upstream changelogs from LXGW WenKai, JetBrains Mono, and Nerd Fonts
+releases, then combines them with ENS Font metadata into a single Markdown
+document.
 
-Use --lxgw-changed / --nerd-changed to control which upstream changelogs
-are included.  If both are omitted (or both false), both are included.
+Use --lxgw-changed / --nerd-changed / --jbm-changed to control which upstream
+changelogs are included.
 
 Usage:
     python scripts/build_release_notes.py \\
         --version      1.0.0 \\
         --lxgw-tag     v1.521 \\
         --nerd-tag     v3.4.0 \\
+        --jbm-tag      v2.304 \\
         --lxgw-changed true \\
         --nerd-changed false \\
+        --jbm-changed  false \\
         --output       /tmp/release_notes.md
 """
 
@@ -71,14 +74,18 @@ def build_notes(
     version: str,
     lxgw_tag: str,
     nerd_tag: str,
+    jbm_tag: str,
     lxgw_body: str,
     nerd_body: str,
+    jbm_body: str,
     lxgw_changed: bool = True,
     nerd_changed: bool = True,
+    jbm_changed: bool = True,
 ) -> str:
 
     lxgw_url = f"https://github.com/lxgw/LxgwWenKai/releases/tag/{lxgw_tag}"
     nerd_url = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
+    jbm_url = f"https://github.com/JetBrains/JetBrainsMono/releases/tag/{jbm_tag}"
     jbsans_url = "https://www.jetbrains.com/lp/mono/"
 
     if lxgw_changed:
@@ -99,6 +106,15 @@ def build_notes(
     else:
         nerd_section = "_（此版本無變更）_"
 
+    if jbm_changed:
+        jbm_section = (
+            truncate_body(jbm_body.strip())
+            if jbm_body.strip()
+            else "_（無變更記錄）_"
+        )
+    else:
+        jbm_section = "_（此版本無變更）_"
+
     return f"""\
 ## ENS Font v{version}
 
@@ -108,7 +124,8 @@ def build_notes(
 |------|------|------|
 | LXGW WenKai / LXGW WenKai Mono | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
 | JetBrains Sans（非等寬） | [JetBrains CDN]({jbsans_url}) | ENS Font ASCII 優先 |
-| NerdFontsSymbolsOnly + JetBrainsMono Nerd Font Mono | [{nerd_tag}]({nerd_url}) | PUA 圖標 + ENS Font Mono ASCII |
+| JetBrains Mono（等寬基底） | [{jbm_tag}]({jbm_url}) | ENS Font Mono ASCII 基礎字型 |
+| NerdFontsSymbolsOnly + JetBrainsMono Nerd Font Mono | [{nerd_tag}]({nerd_url}) | PUA 圖標 + Nerd Fonts 補丁 |
 
 ### 字元優先權
 1. **JetBrains Sans（非等寬）/ JetBrainsMono Mono** — ASCII (U+0020–U+007E)、拉丁字元、Box Drawing、箭頭
@@ -152,6 +169,14 @@ def build_notes(
 
 ---
 
+### JetBrains Mono {jbm_tag}
+
+{jbm_section}
+
+> 完整內容：[{jbm_url}]({jbm_url})
+
+---
+
 ### Nerd Fonts {nerd_tag}
 
 {nerd_section}
@@ -181,6 +206,9 @@ def main():
         "--nerd-tag", required=True, help="Nerd Fonts release tag (e.g. v3.4.0)"
     )
     parser.add_argument(
+        "--jbm-tag", required=True, help="JetBrains Mono release tag (e.g. v2.304)"
+    )
+    parser.add_argument(
         "--lxgw-changed",
         default="true",
         help="Include LXGW WenKai changelog (true/false, default: true)",
@@ -191,6 +219,11 @@ def main():
         help="Include Nerd Fonts changelog (true/false, default: true)",
     )
     parser.add_argument(
+        "--jbm-changed",
+        default="true",
+        help="Include JetBrains Mono changelog (true/false, default: true)",
+    )
+    parser.add_argument(
         "--output", required=True, help="Output file path for release notes Markdown"
     )
     args = parser.parse_args()
@@ -198,6 +231,7 @@ def main():
     github_token = os.environ.get("GITHUB_TOKEN", "")
     lxgw_changed = parse_bool(args.lxgw_changed)
     nerd_changed = parse_bool(args.nerd_changed)
+    jbm_changed = parse_bool(args.jbm_changed)
 
     lxgw_body = ""
     if lxgw_changed:
@@ -217,14 +251,26 @@ def main():
     else:
         print(f"Nerd Fonts {args.nerd_tag}: no change, skipping fetch.")
 
+    jbm_body = ""
+    if jbm_changed:
+        print(f"Fetching JetBrains Mono changelog for {args.jbm_tag}...")
+        jbm_body = get_release_body(
+            "JetBrains/JetBrainsMono", args.jbm_tag, github_token
+        )
+    else:
+        print(f"JetBrains Mono {args.jbm_tag}: no change, skipping fetch.")
+
     notes = build_notes(
         version=args.version,
         lxgw_tag=args.lxgw_tag,
         nerd_tag=args.nerd_tag,
+        jbm_tag=args.jbm_tag,
         lxgw_body=lxgw_body,
         nerd_body=nerd_body,
+        jbm_body=jbm_body,
         lxgw_changed=lxgw_changed,
         nerd_changed=nerd_changed,
+        jbm_changed=jbm_changed,
     )
 
     output = Path(args.output)

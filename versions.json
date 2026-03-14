@@ -2,9 +2,10 @@
   "packaging": {
     "version": "2.2.0",
     "last_built": "2026-03-10T06:23:23.337371+00:00",
-    "git_tag": "v2.2.0_lxgw1.521_jbsans_jbm_nerd3.4.0",
+    "git_tag": "v2.2.0_lxgw1.521_jbsans_jbm2.304_nerd3.4.0",
     "prev_lxgw_tag": "v1.521",
-    "prev_nerd_tag": "v3.4.0"
+    "prev_nerd_tag": "v3.4.0",
+    "prev_jbm_tag": "v2.304"
   },
   "upstream": {
     "lxgw_wenkai": {
@@ -25,6 +26,11 @@
       "source_url": "https://www.jetbrains.com/",
       "version": "1.309",
       "fetched_at": ""
+    },
+    "jetbrains_mono": {
+      "repo": "JetBrains/JetBrainsMono",
+      "tag": "v2.304",
+      "release_date": "2023-01-14T15:22:41Z"
     }
   }
 }

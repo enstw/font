@@ -59,9 +59,9 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   workflow runs — use `BOT_PAT` (fine-grained PAT with `contents:write` +
   `actions:write`) for any cross-workflow dispatch.
 - **check_versions.py overwrites versions.json before build-release runs.**
-  Store previous upstream tags as `prev_lxgw_tag` / `prev_nerd_tag` in
-  `versions.json` and pass them via dispatch payload so build-release can
-  detect which upstream actually changed for release notes.
+  Store previous upstream tags as `prev_lxgw_tag` / `prev_nerd_tag` /
+  `prev_jbm_tag` in `versions.json` and pass them via dispatch payload so
+  build-release can detect which upstream actually changed for release notes.
 - **First-run bootstrap.** On a new repo, versions.json is pre-populated so
   `check_versions.py` always sees "no change". Use `release_tag_exists()` to
   check whether the Release actually exists; if missing, exit 1 to trigger

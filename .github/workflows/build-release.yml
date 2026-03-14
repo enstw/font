@@ -42,6 +42,9 @@ on:
       nerd_tag:
         description: "Nerd Fonts release tag (e.g. v3.4.0)"
         required: false
+      jbm_tag:
+        description: "JetBrains Mono release tag (e.g. v2.304)"
+        required: false
 
 permissions:
   contents: write
@@ -60,8 +63,10 @@ jobs:
       version: ${{ steps.params.outputs.version }}
       lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
       nerd_tag: ${{ steps.params.outputs.nerd_tag }}
+      jbm_tag: ${{ steps.params.outputs.jbm_tag }}
       lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
       nerd_changed: ${{ steps.params.outputs.nerd_changed }}
+      jbm_changed: ${{ steps.params.outputs.jbm_changed }}
 
     steps:
       - name: Checkout repository
@@ -74,6 +79,7 @@ jobs:
           GIT_TAG="${{ github.event.client_payload.git_tag || github.event.inputs.git_tag }}"
           LXGW_TAG="${{ github.event.client_payload.lxgw_tag || github.event.inputs.lxgw_tag }}"
           NERD_TAG="${{ github.event.client_payload.nerd_tag || github.event.inputs.nerd_tag }}"
+          JBM_TAG="${{ github.event.client_payload.jbm_tag || github.event.inputs.jbm_tag }}"
 
           # Fallback: read from versions.json
           if [ -z "$GIT_TAG" ]; then
@@ -84,6 +90,9 @@ jobs:
           fi
           if [ -z "$NERD_TAG" ]; then
             NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['nerd_fonts']['tag'])")
+          fi
+          if [ -z "$JBM_TAG" ]; then
+            JBM_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['jetbrains_mono']['tag'])")
           fi
 
           # Extract X.Y.Z from tag (strip leading 'v', take up to first '_')
@@ -103,28 +112,39 @@ jobs:
             PREV_NERD=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_nerd_tag', ''))")
           fi
 
+          PREV_JBM="${{ github.event.client_payload.prev_jbm_tag }}"
+          if [ -z "$PREV_JBM" ]; then
+            PREV_JBM=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_jbm_tag', ''))")
+          fi
+
           LXGW_CHANGED="false"
           NERD_CHANGED="false"
+          JBM_CHANGED="false"
           { [ -z "$PREV_LXGW" ] || [ "$LXGW_TAG" != "$PREV_LXGW" ]; } && LXGW_CHANGED="true"
           { [ -z "$PREV_NERD"  ] || [ "$NERD_TAG"  != "$PREV_NERD"  ]; } && NERD_CHANGED="true"
-          # Fallback: if both still false (shouldn't happen), show both
-          if [ "$LXGW_CHANGED" = "false" ] && [ "$NERD_CHANGED" = "false" ]; then
+          { [ -z "$PREV_JBM"   ] || [ "$JBM_TAG"   != "$PREV_JBM"   ]; } && JBM_CHANGED="true"
+          # Fallback: if all still false (shouldn't happen), show all
+          if [ "$LXGW_CHANGED" = "false" ] && [ "$NERD_CHANGED" = "false" ] && [ "$JBM_CHANGED" = "false" ]; then
             LXGW_CHANGED="true"
             NERD_CHANGED="true"
+            JBM_CHANGED="true"
           fi
 
           echo "git_tag=$GIT_TAG"           >> "$GITHUB_OUTPUT"
           echo "version=$VERSION"           >> "$GITHUB_OUTPUT"
           echo "lxgw_tag=$LXGW_TAG"         >> "$GITHUB_OUTPUT"
           echo "nerd_tag=$NERD_TAG"          >> "$GITHUB_OUTPUT"
+          echo "jbm_tag=$JBM_TAG"            >> "$GITHUB_OUTPUT"
           echo "lxgw_changed=$LXGW_CHANGED" >> "$GITHUB_OUTPUT"
           echo "nerd_changed=$NERD_CHANGED"  >> "$GITHUB_OUTPUT"
+          echo "jbm_changed=$JBM_CHANGED"    >> "$GITHUB_OUTPUT"
 
           echo "--- Build parameters ---"
           echo "  git_tag      : $GIT_TAG"
           echo "  version      : $VERSION"
           echo "  lxgw_tag     : $LXGW_TAG  (prev: $PREV_LXGW, changed: $LXGW_CHANGED)"
           echo "  nerd_tag     : $NERD_TAG   (prev: $PREV_NERD,  changed: $NERD_CHANGED)"
+          echo "  jbm_tag      : $JBM_TAG    (prev: $PREV_JBM,   changed: $JBM_CHANGED)"
 
   # ---------------------------------------------------------------------------
   # Job 2: Download upstream font sources
@@ -447,8 +467,10 @@ jobs:
             --version      "${{ needs.resolve-params.outputs.version }}" \
             --lxgw-tag     "${{ needs.resolve-params.outputs.lxgw_tag }}" \
             --nerd-tag     "${{ needs.resolve-params.outputs.nerd_tag }}" \
+            --jbm-tag      "${{ needs.resolve-params.outputs.jbm_tag }}" \
             --lxgw-changed "${{ needs.resolve-params.outputs.lxgw_changed }}" \
             --nerd-changed "${{ needs.resolve-params.outputs.nerd_changed }}" \
+            --jbm-changed  "${{ needs.resolve-params.outputs.jbm_changed }}" \
             --output       /tmp/release_notes.md
           echo "--- Release notes preview (first 30 lines) ---"
           head -30 /tmp/release_notes.md
