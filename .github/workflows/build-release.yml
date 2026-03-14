@@ -7,6 +7,7 @@
 #   - workflow_dispatch for manual builds
 #
 # Produces six TTF files: (Light, Regular, Bold) x (ENS Font, ENS Font Mono)
+# plus a TrueType Collection (ENSFont.ttc) bundling all six,
 # packaged into a ZIP archive and published as a GitHub Release.
 #
 # Upstream donor mapping:
@@ -22,6 +23,8 @@
 #   download-fonts
 #       |
 #   build (matrix x6, parallel)
+#       |
+#   bundle-ttc
 #       |
 #   release
 
@@ -70,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Resolve parameters
         id: params
@@ -155,7 +158,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download LXGW WenKai / WenKai Mono TTF files
         env:
@@ -259,7 +262,7 @@ jobs:
           test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf
 
       - name: Upload font sources as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: font-sources
           path: |
@@ -337,10 +340,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download font sources
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: font-sources
           path: fonts/
@@ -411,28 +414,68 @@ jobs:
           EOF
 
       - name: Upload built font
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: font-${{ matrix.output_file }}
           path: dist/${{ matrix.output_file }}
           retention-days: 1
 
   # ---------------------------------------------------------------------------
-  # Job 4: Assemble and publish GitHub Release
+  # Job 4: Bundle TTC (TrueType Collection)
+  # ---------------------------------------------------------------------------
+  bundle-ttc:
+    needs: [resolve-params, build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download all built fonts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: font-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: scripts/requirements.txt
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Bundle TTFs into TTC
+        run: |
+          python scripts/bundle_ttc.py --input-dir dist/ --output dist/ENSFont.ttc
+          ls -lh dist/ENSFont.ttc
+
+      - name: Upload TTC artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: font-ENSFont.ttc
+          path: dist/ENSFont.ttc
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Assemble and publish GitHub Release
   # ---------------------------------------------------------------------------
   release:
-    needs: [resolve-params, build]
+    needs: [resolve-params, build, bundle-ttc]
     runs-on: ubuntu-latest
     if: success()
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.BOT_PAT }}
 
-      - name: Download all built fonts
-        uses: actions/download-artifact@v4
+      - name: Download all built fonts (TTFs + TTC)
+        uses: actions/download-artifact@v7
         with:
           pattern: font-*
           path: dist/
@@ -444,7 +487,7 @@ jobs:
         run: |
           ls -lh dist/
           cd dist
-          zip -j "../ENSFont-${VERSION}.zip" *.ttf
+          zip -j "../ENSFont-${VERSION}.zip" *.ttf *.ttc
           cd ..
           zip "ENSFont-${VERSION}.zip" README.md LICENSE.md
           ls -lh "ENSFont-${VERSION}.zip"
@@ -507,4 +550,5 @@ jobs:
             dist/ENSFontMono-Regular.ttf
             dist/ENSFont-Bold.ttf
             dist/ENSFontMono-Bold.ttf
+            dist/ENSFont.ttc
             ENSFont-${{ needs.resolve-params.outputs.version }}.zip
