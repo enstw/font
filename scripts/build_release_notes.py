@@ -83,7 +83,7 @@ def build_notes(
     jbm_changed: bool = True,
 ) -> str:
 
-    lxgw_url = f"https://github.com/lxgw/LxgwWenKai/releases/tag/{lxgw_tag}"
+    lxgw_url = f"https://github.com/lxgw/LxgwWenKaiTC/releases/tag/{lxgw_tag}"
     nerd_url = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
     jbm_url = f"https://github.com/JetBrains/JetBrainsMono/releases/tag/{jbm_tag}"
     jbsans_url = "https://www.jetbrains.com/lp/mono/"
@@ -118,11 +118,11 @@ def build_notes(
     return f"""\
 ## ENS Font v{version}
 
-**Elegant · Nerd · Sino** — 終端機專用中英混排字體
+**Elegant · Nerd · Sino** — 終端機專用中英混排字體 (Traditional Chinese CJK Base)
 
 | 來源 | 版本 | 用途 |
 |------|------|------|
-| LXGW WenKai / LXGW WenKai Mono | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
+| LXGW WenKai TC / LXGW WenKai Mono TC | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
 | JetBrains Sans（非等寬） | [JetBrains CDN]({jbsans_url}) | ENS Font ASCII 優先 |
 | JetBrains Mono（等寬基底） | [{jbm_tag}]({jbm_url}) | ENS Font Mono ASCII 基礎字型 |
 | NerdFontsSymbolsOnly + JetBrainsMono Nerd Font Mono | [{nerd_tag}]({nerd_url}) | PUA 圖標 + Nerd Fonts 補丁 |
@@ -130,9 +130,9 @@ def build_notes(
 ### 字元優先權
 1. **JetBrains Sans（非等寬）/ JetBrainsMono Mono** — ASCII (U+0020–U+007E)、拉丁字元、Box Drawing、箭頭
 2. **Nerd Fonts** — PUA 圖標 (E000–F8FF)、Powerline 符號
-3. **LXGW WenKai** — CJK (U+4E00–U+9FFF)、平假名、片假名、全形標點
+3. **LXGW WenKai TC** — CJK (U+4E00–U+9FFF)、平假名、片假名、全形標點
 
-> 對應規則：`ENS Font = LXGW WenKai + JetBrainsSans（Nerd 補丁）`，`ENS Font Mono = LXGW WenKai Mono + JetBrainsMonoNerdFontMono`。
+> 對應規則：`ENS Font = LXGW WenKai TC + JetBrainsSans（Nerd 補丁）`，`ENS Font Mono = LXGW WenKai Mono TC + JetBrainsMonoNerdFontMono`。
 
 ### 字體檔案
 
@@ -161,7 +161,7 @@ def build_notes(
 
 ## 上游變更記錄
 
-### LXGW WenKai {lxgw_tag}
+### LXGW WenKai TC {lxgw_tag}
 
 {lxgw_section}
 
@@ -235,12 +235,12 @@ def main():
 
     lxgw_body = ""
     if lxgw_changed:
-        print(f"Fetching LXGW WenKai changelog for {args.lxgw_tag}...")
+        print(f"Fetching LXGW WenKai TC changelog for {args.lxgw_tag}...")
         lxgw_body = get_release_body(
-            "lxgw/LxgwWenKai", args.lxgw_tag, github_token
+            "lxgw/LxgwWenKaiTC", args.lxgw_tag, github_token
         )
     else:
-        print(f"LXGW WenKai {args.lxgw_tag}: no change, skipping fetch.")
+        print(f"LXGW WenKai TC {args.lxgw_tag}: no change, skipping fetch.")
 
     nerd_body = ""
     if nerd_changed:

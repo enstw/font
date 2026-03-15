@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-merge.py - Merges LXGWWenKai(*) + donor font into ENS Font (Elegant Nerd Sino).
+merge.py - Merges LXGWWenKaiTC(*) + donor font into ENS Font (Elegant Nerd Sino).
 
 Merge strategy:
-  Base:   LXGW WenKai / WenKai Mono  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
+  Base:   LXGW WenKai TC / WenKai Mono TC  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
   Donor:  Non-mono: JetBrains Sans + Nerd Fonts (pre-patched by patch.py)
           Mono:     JetBrainsMono Nerd Font Mono (ASCII, Latin, Box Drawing, PUA icons)
 
-All donor codepoints are transplanted into the base, overwriting any existing WenKai
-entry at the same codepoint. WenKai serves as the failsafe: only codepoints absent
-from the donor are retained from WenKai.
+All donor codepoints are transplanted into the base, overwriting any existing WenKai TC
+entry at the same codepoint. WenKai TC serves as the failsafe: only codepoints absent
+from the donor are retained from WenKai TC.
 
 Usage:
     python scripts/merge.py \
-        --wenkai  fonts/wenkai/LXGWWenKai-Regular.ttf \
+        --wenkai  fonts/wenkai/LXGWWenKaiTC-Regular.ttf \
         --donor   fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf \
         --output  dist/ENSFont-Regular.ttf \
         --style   Regular \
@@ -303,6 +303,7 @@ def set_font_metadata(
         (5, version_str),
         (6, ps_name),
         (8, "enstw"),
+        (9, "ENSFont"),
         (11, "https://ens.tw/font"),
         (13, license_text),
         (14, "https://openfontlicense.org"),
@@ -312,9 +313,8 @@ def set_font_metadata(
         ),
     ]
 
-    # Clear name IDs we are replacing
-    ids_to_clear = {e[0] for e in entries}
-    name_table.names = [n for n in name_table.names if n.nameID not in ids_to_clear]
+    # Clear ALL name records to ensure no leftover "LXGW" or "霞鶩" names from WenKai base
+    name_table.names = []
 
     # Write Unicode-capable records first to avoid '?' replacement in preview text.
     # Keep zh-TW first for better TC classification and keep en-US as fallback.
@@ -560,9 +560,9 @@ def merge_fonts(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Merge LXGWWenKai(*) + donor font into ENS Font"
+        description="Merge LXGWWenKaiTC(*) + donor font into ENS Font"
     )
-    parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKai*.ttf")
+    parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKaiTC*.ttf")
     parser.add_argument("--donor", required=True, help="Path to donor TTF (JetBrains Sans NerdPatched or JetBrainsMono Nerd Font Mono)")
     parser.add_argument("--output", required=True, help="Output .ttf path")
     parser.add_argument(

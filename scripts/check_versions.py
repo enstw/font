@@ -285,22 +285,22 @@ def main():
     changed = False
     errors = []
 
-    # --- Check LXGW WenKai ---
+    # --- Check LXGW WenKai TC ---
     try:
         lxgw_rel = get_latest_release(lxgw_repo, github_token)
         new_lxgw_tag = lxgw_rel["tag_name"]
         if new_lxgw_tag != current_lxgw_tag:
-            print(f"  LXGW WenKai: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
+            print(f"  LXGW WenKai TC: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
             versions["upstream"]["lxgw_wenkai"]["tag"] = new_lxgw_tag
             versions["upstream"]["lxgw_wenkai"]["release_date"] = lxgw_rel[
                 "published_at"
             ]
             changed = True
         else:
-            print(f"  LXGW WenKai: {current_lxgw_tag}  [no change]")
+            print(f"  LXGW WenKai TC: {current_lxgw_tag}  [no change]")
     except Exception as e:
-        print(f"  WARNING: Could not check LXGW WenKai: {e}", file=sys.stderr)
-        errors.append(f"LXGW WenKai check failed: {e}")
+        print(f"  WARNING: Could not check LXGW WenKai TC: {e}", file=sys.stderr)
+        errors.append(f"LXGW WenKai TC check failed: {e}")
 
     # --- Check Nerd Fonts (carries NerdFontsSymbolsOnly + JetBrainsMono Nerd Font) ---
     try:

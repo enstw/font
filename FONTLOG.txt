@@ -30,8 +30,8 @@ Change Log
 
 Acknowledgements
 
-- Xiaocheng Liao (lxgw): LXGW WenKai Mono
-  https://github.com/lxgw/LxgwWenKai
+- Xiaocheng Liao (lxgw): LXGW WenKai Mono TC
+  https://github.com/lxgw/LxgwWenKaiTC
 
 - André Berg: Meslo LG font
   https://github.com/andreberg/Meslo-Font
