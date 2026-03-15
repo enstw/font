@@ -423,6 +423,26 @@ def validate_monospace_integrity(font: TTFont) -> None:
         log.warning("No ASCII glyphs found - cannot verify monospace integrity")
 
 
+def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
+    """
+    Set metadata flags that tell terminal emulators this is a monospaced font.
+    - post.isFixedPitch: 1 for mono, 0 for proportional
+    - OS/2.panose.bProportion: 9 for mono, 0 (any) or 2 (proportional)
+    """
+    post = font["post"]
+    os2 = font["OS/2"]
+
+    if is_mono:
+        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9)")
+        post.isFixedPitch = 1
+        os2.panose.bProportion = 9
+    else:
+        log.info("Setting proportional flags (isFixedPitch=0, Panose=2)")
+        post.isFixedPitch = 0
+        if os2.panose.bProportion == 9:
+            os2.panose.bProportion = 2
+
+
 def rebuild_vmtx(font: TTFont) -> None:
     """
     Rebuild the vmtx table so every glyph in the font has a valid entry.
@@ -532,23 +552,23 @@ def merge_fonts(
     log.info("Step 6: Setting OS/2/hhea metrics from donor...")
     set_os2_metrics(base, donor)
 
-    # Step 7: Validate monospace integrity (only for mono builds)
+    # Step 7: Set monospaced metadata
+    log.info(f"Step 7: Setting {'monospaced' if is_mono else 'proportional'} metadata...")
+    set_monospaced_metadata(base, is_mono)
+
+    # Step 8: Validate monospace integrity (only for mono builds)
     if is_mono:
-        log.info("Step 7: Validating monospace integrity...")
+        log.info("Step 8: Validating monospace integrity...")
         validate_monospace_integrity(base)
     else:
-        log.info("Step 7: Skipping monospace integrity check (non-mono build)")
+        log.info("Step 8: Skipping monospace integrity check (non-mono build)")
 
-    # Step 8: Rebuild vmtx so every glyph has a valid vertical metrics entry.
-    # After transplanting donor glyphs the vmtx entry count no longer matches
-    # the enlarged glyph set, causing macOS validation warnings.  We rebuild
-    # the table: advance height = vhea.advanceHeightMax for every glyph,
-    # tsb = vhea.ascent - yMax (0 for glyphs without outlines).
+    # Step 9: Rebuild vmtx so every glyph has a valid vertical metrics entry.
     if "vmtx" in base and "vhea" in base:
-        log.info("Step 8: Rebuilding vmtx for full glyph coverage...")
+        log.info("Step 9: Rebuilding vmtx for full glyph coverage...")
         rebuild_vmtx(base)
 
-    # Step 9: Save
+    # Step 10: Save
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
     log.info(f"Step 9: Saving to {output_path} ...")
