@@ -428,14 +428,27 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     Set metadata flags that tell terminal emulators this is a monospaced font.
     - post.isFixedPitch: 1 for mono, 0 for proportional
     - OS/2.panose.bProportion: 9 for mono, 0 (any) or 2 (proportional)
+    - OS/2.xAvgCharWidth: Set to width of 'h' (approximate)
+    - OS/2.achVendID: Set to 'ENSF' (ENS Font)
     """
     post = font["post"]
     os2 = font["OS/2"]
 
+    # Set Vendor ID (4-character tag)
+    os2.achVendID = "ENSF"
+
     if is_mono:
-        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9)")
+        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9, xAvgCharWidth)")
         post.isFixedPitch = 1
         os2.panose.bProportion = 9
+        
+        # Set xAvgCharWidth to the width of a standard Latin character (e.g., 'h' at U+0068)
+        # For monospaced fonts, this should be the width of all Latin characters.
+        hmtx = font["hmtx"]
+        if "h" in hmtx.metrics:
+            os2.xAvgCharWidth = hmtx.metrics["h"][0]
+        elif "don_un0068" in hmtx.metrics:
+            os2.xAvgCharWidth = hmtx.metrics["don_un0068"][0]
     else:
         log.info("Setting proportional flags (isFixedPitch=0, Panose=2)")
         post.isFixedPitch = 0
