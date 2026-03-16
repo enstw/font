@@ -165,33 +165,22 @@ jobs:
           LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
         run: |
           mkdir -p fonts/wenkai
-          # LXGW WenKai TC provides fonts in ZIP archives.
-          # We download both the standard and mono archives.
-          
-          # 1. Standard TC
+          # LXGW WenKai TC bundles all fonts (regular and mono) in one ZIP archive.
           ZIP_NAME="lxgw-wenkai-tc-${LXGW_TAG}.zip"
           URL="https://github.com/lxgw/LxgwWenKaiTC/releases/download/${LXGW_TAG}/${ZIP_NAME}"
           echo "Downloading ${URL} ..."
           curl -fsSL "${URL}" -o "/tmp/${ZIP_NAME}"
           echo "Extracting ${ZIP_NAME} ..."
           unzip -j "/tmp/${ZIP_NAME}" "*.ttf" -d fonts/wenkai/
-          
-          # 2. Mono TC
-          MONO_ZIP_NAME="lxgw-wenkai-mono-tc-${LXGW_TAG}.zip"
-          MONO_URL="https://github.com/lxgw/LxgwWenKaiTC/releases/download/${LXGW_TAG}/${MONO_ZIP_NAME}"
-          echo "Downloading ${MONO_URL} ..."
-          curl -fsSL "${MONO_URL}" -o "/tmp/${MONO_ZIP_NAME}"
-          echo "Extracting ${MONO_ZIP_NAME} ..."
-          unzip -j "/tmp/${MONO_ZIP_NAME}" "*.ttf" -d fonts/wenkai/
 
           echo "LXGW WenKai TC downloads:"
           ls -lh fonts/wenkai/
           test -f fonts/wenkai/LXGWWenKaiTC-Light.ttf
           test -f fonts/wenkai/LXGWWenKaiTC-Regular.ttf
-          test -f fonts/wenkai/LXGWWenKaiTC-Bold.ttf
+          test -f fonts/wenkai/LXGWWenKaiTC-Medium.ttf
           test -f fonts/wenkai/LXGWWenKaiMonoTC-Light.ttf
           test -f fonts/wenkai/LXGWWenKaiMonoTC-Regular.ttf
-          test -f fonts/wenkai/LXGWWenKaiMonoTC-Bold.ttf
+          test -f fonts/wenkai/LXGWWenKaiMonoTC-Medium.ttf
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -328,7 +317,7 @@ jobs:
             ps_family: ENSFontMono
 
           - style: Bold
-            wenkai_file: LXGWWenKaiTC-Bold.ttf
+            wenkai_file: LXGWWenKaiTC-Medium.ttf
             donor_subdir: jetbrains_sans_patched
             donor_file: JetBrainsSans-NerdPatched-Bold.ttf
             output_file: ENSFont-Bold.ttf
@@ -337,7 +326,7 @@ jobs:
             ps_family: ENSFont
 
           - style: Bold
-            wenkai_file: LXGWWenKaiMonoTC-Bold.ttf
+            wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
             donor_subdir: jetbrainsmono
             donor_file: JetBrainsMonoNerdFontMono-Bold.ttf
             output_file: ENSFontMono-Bold.ttf
