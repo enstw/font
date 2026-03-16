@@ -433,17 +433,20 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     over_corrected = 0
     for gname, (adv, lsb) in list(hmtx.metrics.items()):
         if 0 < adv < cell_width:
-            log.debug(f"  normalize half: {gname} {adv} -> {cell_width}")
-            hmtx.metrics[gname] = (cell_width, lsb)
+            new_lsb = lsb + (cell_width - adv) // 2
+            log.debug(f"  normalize half: {gname} {adv} -> {cell_width} (lsb {lsb} -> {new_lsb})")
+            hmtx.metrics[gname] = (cell_width, new_lsb)
             half_corrected += 1
         elif cell_width < adv < full_width:
-            log.debug(f"  normalize full: {gname} {adv} -> {full_width}")
-            hmtx.metrics[gname] = (full_width, lsb)
+            new_lsb = lsb + (full_width - adv) // 2
+            log.debug(f"  normalize full: {gname} {adv} -> {full_width} (lsb {lsb} -> {new_lsb})")
+            hmtx.metrics[gname] = (full_width, new_lsb)
             full_corrected += 1
         elif adv > full_width:
             rounded = math.ceil(adv / full_width) * full_width
-            log.debug(f"  normalize over: {gname} {adv} -> {rounded}")
-            hmtx.metrics[gname] = (rounded, lsb)
+            new_lsb = lsb + (rounded - adv) // 2
+            log.debug(f"  normalize over: {gname} {adv} -> {rounded} (lsb {lsb} -> {new_lsb})")
+            hmtx.metrics[gname] = (rounded, new_lsb)
             over_corrected += 1
     log.info(
         f"  normalize_half_widths: {half_corrected} glyphs -> {cell_width}, "
