@@ -79,13 +79,17 @@ def check_mono(font_path: str, cell_width: int) -> bool:
 
     # Acceptable advances: 0 (combining marks), cell_width (half-width),
     # 2*cell_width (full-width CJK / double-wide Nerd icons).
+    # U+2E3A (2-em dash) and U+2E3B (3-em dash) are intentional multi-cell exceptions.
     # Any other non-zero width is a violation.
     full_width = 2 * cell_width
+    em_dash_exceptions = {0x2E3A, 0x2E3B}
     bad_widths: dict[int, list[tuple]] = defaultdict(list)
     for gname, (adv, _lsb) in hmtx.metrics.items():
         if adv == 0 or adv == cell_width or adv == full_width:
             continue
         cps = glyph_to_cps.get(gname, [])
+        if any(cp in em_dash_exceptions for cp in cps):
+            continue
         if cps:
             for cp in cps[:3]:
                 bad_widths[adv].append((cp, gname))
