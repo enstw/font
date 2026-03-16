@@ -53,6 +53,10 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   distinct git tag tokens — strip the leading `v` but keep dots intact.
   (Previous bug: both mapped to `"340"`.)
 
+### GitHub Actions
+
+- **Always use the latest version when introducing a new action.** Check the action's releases page before adding it. Never copy an old version from an existing workflow — look it up fresh.
+
 ### CI / workflow
 
 - **`GITHUB_TOKEN` cannot trigger `repository_dispatch`** to launch other
