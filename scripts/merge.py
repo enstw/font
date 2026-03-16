@@ -267,6 +267,7 @@ def set_font_metadata(
       11 URL Vendor
       13 License description
       14 License URL
+      16 Preferred/Typographic Family name (modern apps use this for family grouping)
       19 Sample text
     """
     name_table = font["name"]
@@ -307,6 +308,7 @@ def set_font_metadata(
         (11, "https://ens.tw/font"),
         (13, license_text),
         (14, "https://openfontlicense.org"),
+        (16, family_name),
         (
             19,
             "ENS:  main  ⇡1 ⇣0  ✚2 ~1 -0  |  git commit -m '修正字型預覽'  ✓ ；Elegant Nerd Sino：English + 繁體中文 + 简体中文 + 日本語 + 한국어。",
@@ -553,6 +555,9 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     Set metadata flags that tell terminal emulators this is a monospaced font.
     - post.isFixedPitch: 1 for mono, 0 for proportional
     - OS/2.panose.bProportion: 9 for mono, 0 (any) or 2 (proportional)
+    - OS/2.panose.bSerifStyle: 0 (Any) — inherited from WenKai base as 2 (Cove),
+      which incorrectly classifies this sans-serif font as serifed. Reset to 0 to
+      match JetBrains Mono and avoid wrong font-substitution matches.
     - OS/2.xAvgCharWidth: Set to width of 'h' (approximate)
     - OS/2.achVendID: Set to 'ENSF' (ENS Font)
     """
@@ -561,6 +566,10 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
 
     # Set Vendor ID (4-character tag)
     os2.achVendID = "ENSF"
+
+    # bSerifStyle=2 (Cove) is inherited from WenKai and is wrong for a sans-serif font.
+    # Set to 0 (Any) to match JetBrains Mono and avoid incorrect serif font substitution.
+    os2.panose.bSerifStyle = 0
 
     if is_mono:
         log.info("Setting monospaced flags (isFixedPitch=1, Panose=9)")
