@@ -77,12 +77,13 @@ def check_mono(font_path: str, cell_width: int) -> bool:
     for cp, gname in cmap.items():
         glyph_to_cps[gname].append(cp)
 
-    # Collect glyphs with advance in (0, cell_width) — these are the problematic ones.
-    # Widths of 0 (combining marks) and >= cell_width (full-width CJK, double-wide
-    # Nerd icons, em-dashes) are all acceptable — full-width rescale is a separate task.
+    # Acceptable advances: 0 (combining marks), cell_width (half-width),
+    # 2*cell_width (full-width CJK / double-wide Nerd icons).
+    # Any other non-zero width is a violation.
+    full_width = 2 * cell_width
     bad_widths: dict[int, list[tuple]] = defaultdict(list)
     for gname, (adv, _lsb) in hmtx.metrics.items():
-        if adv == 0 or adv >= cell_width:
+        if adv == 0 or adv == cell_width or adv == full_width:
             continue
         cps = glyph_to_cps.get(gname, [])
         if cps:
@@ -112,7 +113,7 @@ def check_mono(font_path: str, cell_width: int) -> bool:
             print(f"  VIOLATION: {v}", file=sys.stderr)
         return False
 
-    print(f"PASS: {font_path}  (cell_width={cell_width}, 2x={2*cell_width})")
+    print(f"PASS: {font_path}  (acceptable widths: {{0, {cell_width}, {2*cell_width}}})")
     return True
 
 

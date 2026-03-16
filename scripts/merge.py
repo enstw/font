@@ -415,23 +415,31 @@ def assert_donor_is_mono(donor: TTFont, donor_path: str) -> None:
 
 def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     """
-    After transplant, bump every glyph with 0 < advance < cell_width to cell_width.
+    After transplant, enforce the {0, cell_width, 2*cell_width} advance grid.
 
-    WenKai Mono TC carries all Western text (Latin, Greek, Cyrillic, Katakana, etc.)
-    at 500 units — correct within WenKai's own 500/1000 grid, but wrong in
-    ENSFontMono's 600/1200 grid (donor JBM Nerd Mono defines the half-cell as 600).
-    Codepoints absent from JBM Nerd leak through from WenKai at 500; this pass
-    corrects them all without touching combining marks (advance=0) or full-width
-    glyphs (advance >= cell_width).
+    WenKai Mono TC uses a 500/1000 grid (half/full), but ENSFontMono uses a
+    600/1200 grid (JBM Nerd Mono defines the half-cell as 600).  Two passes:
+      1. Sub-half-cell (0 < adv < cell_width):      bump to cell_width   (500→600)
+      2. Sub-full-cell (cell_width < adv < 2*cell_width): bump to 2*cell_width (1000→1200)
+    Combining marks (advance=0) and correctly-sized glyphs are untouched.
     """
     hmtx = font["hmtx"]
-    corrected = 0
+    full_width = 2 * cell_width
+    half_corrected = 0
+    full_corrected = 0
     for gname, (adv, lsb) in list(hmtx.metrics.items()):
         if 0 < adv < cell_width:
-            log.debug(f"  normalize: {gname} {adv} -> {cell_width}")
+            log.debug(f"  normalize half: {gname} {adv} -> {cell_width}")
             hmtx.metrics[gname] = (cell_width, lsb)
-            corrected += 1
-    log.info(f"  normalize_half_widths: {corrected} glyphs corrected to {cell_width} units")
+            half_corrected += 1
+        elif cell_width < adv < full_width:
+            log.debug(f"  normalize full: {gname} {adv} -> {full_width}")
+            hmtx.metrics[gname] = (full_width, lsb)
+            full_corrected += 1
+    log.info(
+        f"  normalize_half_widths: {half_corrected} glyphs -> {cell_width}, "
+        f"{full_corrected} glyphs -> {full_width}"
+    )
 
 
 def compute_x_avg_char_width(font: TTFont) -> int:
@@ -530,7 +538,7 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
                 gname = cmap[cp]
                 if gname in hmtx.metrics:
                     adv = hmtx.metrics[gname][0]
-                    if adv != 0 and adv != cell_width:
+                    if adv != 0 and adv != cell_width and adv != 2 * cell_width:
                         violations.append((cp, adv, block_name))
 
     if violations:
