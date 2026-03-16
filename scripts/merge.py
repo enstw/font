@@ -394,33 +394,158 @@ def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
     )
 
 
-def validate_monospace_integrity(font: TTFont) -> None:
+def assert_donor_is_mono(donor: TTFont, donor_path: str) -> None:
     """
-    Verify all ASCII printable glyphs (U+0020-U+007E) have identical advance widths.
-    Issues a warning (not error) for violations - terminal usage depends on this.
+    Assert that the donor font is monospaced (post.isFixedPitch == 1).
+    Called before transplant for --mono builds to prevent accidentally wiring
+    a proportional font (e.g. JetBrains Sans) as a mono donor.
+    Exits with error if the check fails.
+    """
+    if donor["post"].isFixedPitch != 1:
+        log.error(
+            f"Donor font is NOT monospaced (post.isFixedPitch != 1): {donor_path}\n"
+            "  A monospaced donor is required for --mono builds.\n"
+            "  Use JetBrainsMonoNerdFontMono-*.ttf, not JetBrainsSans."
+        )
+        sys.exit(1)
+    log.info(f"Donor mono check: PASS (post.isFixedPitch=1): {donor_path}")
+
+
+def normalize_half_widths(font: TTFont, cell_width: int) -> None:
+    """
+    After transplant, bump every glyph with 0 < advance < cell_width to cell_width.
+
+    WenKai Mono TC carries all Western text (Latin, Greek, Cyrillic, Katakana, etc.)
+    at 500 units — correct within WenKai's own 500/1000 grid, but wrong in
+    ENSFontMono's 600/1200 grid (donor JBM Nerd Mono defines the half-cell as 600).
+    Codepoints absent from JBM Nerd leak through from WenKai at 500; this pass
+    corrects them all without touching combining marks (advance=0) or full-width
+    glyphs (advance >= cell_width).
+    """
+    hmtx = font["hmtx"]
+    corrected = 0
+    for gname, (adv, lsb) in list(hmtx.metrics.items()):
+        if 0 < adv < cell_width:
+            log.debug(f"  normalize: {gname} {adv} -> {cell_width}")
+            hmtx.metrics[gname] = (cell_width, lsb)
+            corrected += 1
+    log.info(f"  normalize_half_widths: {corrected} glyphs corrected to {cell_width} units")
+
+
+def compute_x_avg_char_width(font: TTFont) -> int:
+    """
+    Compute xAvgCharWidth using the OpenType spec weighted formula.
+    Weights: 26 lowercase a-z + space, standard OpenType frequency weights (total 1000).
+    Must be called after normalize_half_widths() so advance widths are already corrected.
     """
     cmap = get_best_cmap(font)
     hmtx = font["hmtx"]
-    widths = set()
 
+    # OpenType spec weights (sum = 1000)
+    weights = {
+        'a': 64, 'b': 14, 'c': 27, 'd': 35, 'e': 100, 'f': 20, 'g': 14,
+        'h': 42, 'i': 63, 'j':  3, 'k':  6, 'l': 35, 'm':  20, 'n': 56,
+        'o': 56, 'p': 17, 'q':  4, 'r': 49, 's': 56, 't':  71, 'u': 31,
+        'v': 10, 'w': 18, 'x':  3, 'y': 18, 'z':  2, ' ': 166,
+    }
+
+    total_weight = 0
+    weighted_sum = 0
+    for char, weight in weights.items():
+        cp = ord(char)
+        if cp in cmap:
+            gname = cmap[cp]
+            if gname in hmtx.metrics:
+                weighted_sum += hmtx.metrics[gname][0] * weight
+                total_weight += weight
+
+    if total_weight == 0:
+        log.warning("compute_x_avg_char_width: no weighted glyphs found, keeping existing value")
+        return font["OS/2"].xAvgCharWidth
+
+    return round(weighted_sum / total_weight)
+
+
+def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
+    """
+    Verify half-width glyphs have the expected uniform advance width.
+
+    For mono builds: checks ASCII + Latin Extended-A/B + Greek & Coptic + Cyrillic
+    + Greek Extended + Nerd PUA BMP. Emits log.error + sys.exit(1) on any violation.
+
+    For non-mono builds: checks ASCII only, issues a warning (not error).
+    """
+    cmap = get_best_cmap(font)
+    hmtx = font["hmtx"]
+
+    # Determine cell width from ASCII printable range
+    ascii_widths = set()
     for cp in range(0x0020, 0x007F):
         if cp in cmap:
             gname = cmap[cp]
             if gname in hmtx.metrics:
-                widths.add(hmtx.metrics[gname][0])
+                ascii_widths.add(hmtx.metrics[gname][0])
 
-    if len(widths) > 1:
-        log.warning(
-            f"MONOSPACE INTEGRITY: ASCII glyphs have {len(widths)} different "
-            f"advance widths: {sorted(widths)}. Expected for non-mono builds; "
-            f"check donor source integrity for mono builds."
-        )
-    elif len(widths) == 1:
-        log.info(
-            f"Monospace integrity OK: all ASCII glyphs width = {widths.pop()} units"
-        )
-    else:
+    if not ascii_widths:
         log.warning("No ASCII glyphs found - cannot verify monospace integrity")
+        return
+
+    if len(ascii_widths) > 1:
+        msg = (
+            f"ASCII glyphs have {len(ascii_widths)} different advance widths: "
+            f"{sorted(ascii_widths)}."
+        )
+        if is_mono:
+            log.error(f"MONOSPACE INTEGRITY FAIL: {msg}")
+            sys.exit(1)
+        else:
+            log.warning(f"MONOSPACE INTEGRITY: {msg} Expected for non-mono builds.")
+            return
+
+    cell_width = ascii_widths.pop()
+    log.info(f"Monospace integrity: ASCII cell width = {cell_width} units")
+
+    if not is_mono:
+        log.info("Monospace integrity OK (ASCII-only check for non-mono build)")
+        return
+
+    # Extended check for mono builds
+    # U+2E3A (2-em dash) and U+2E3B (3-em dash) are intentional multi-cell exceptions
+    em_dash_exceptions = {0x2E3A, 0x2E3B}
+
+    extended_ranges = [
+        (0x0100, 0x024F, "Latin Extended-A/B"),
+        (0x0370, 0x03FF, "Greek & Coptic"),
+        (0x0400, 0x04FF, "Cyrillic"),
+        (0x1F00, 0x1FFF, "Greek Extended"),
+        (0xE000, 0xF8FF, "Nerd PUA BMP"),
+    ]
+
+    violations = []
+    for start, end, block_name in extended_ranges:
+        for cp in range(start, end + 1):
+            if cp in cmap and cp not in em_dash_exceptions:
+                gname = cmap[cp]
+                if gname in hmtx.metrics:
+                    adv = hmtx.metrics[gname][0]
+                    if adv != 0 and adv != cell_width:
+                        violations.append((cp, adv, block_name))
+
+    if violations:
+        log.error(
+            f"MONOSPACE INTEGRITY FAIL: {len(violations)} glyphs with wrong advance "
+            f"width (expected {cell_width}):"
+        )
+        for cp, adv, block_name in violations[:10]:
+            log.error(f"  U+{cp:04X} in {block_name}: advance={adv}")
+        if len(violations) > 10:
+            log.error(f"  ... and {len(violations) - 10} more")
+        sys.exit(1)
+
+    log.info(
+        f"Monospace integrity OK: all checked glyphs at {cell_width} units "
+        f"(ASCII + extended ranges)"
+    )
 
 
 def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
@@ -438,18 +563,9 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     os2.achVendID = "ENSF"
 
     if is_mono:
-        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9, xAvgCharWidth)")
+        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9)")
         post.isFixedPitch = 1
         os2.panose.bProportion = 9
-        
-        # Set xAvgCharWidth to the width of 'h' (U+0068) via cmap, prefix-independent.
-        hmtx = font["hmtx"]
-        cmap = get_best_cmap(font)
-        h_glyph = cmap.get(0x0068) if cmap else None
-        if h_glyph and h_glyph in hmtx.metrics:
-            os2.xAvgCharWidth = hmtx.metrics[h_glyph][0]
-        else:
-            log.warning("Could not find 'h' (U+0068) for xAvgCharWidth; value unchanged")
     else:
         log.info("Setting proportional flags (isFixedPitch=0, Panose=2)")
         post.isFixedPitch = 0
@@ -536,6 +652,19 @@ def merge_fonts(
     log.info("Step 0: Checking UPM compatibility...")
     check_upm_compatibility(base, donor)
 
+    # Step 0b: For mono builds, assert donor is monospaced and read its cell width.
+    # Cell width is read before transplant so donor hmtx is still unmodified.
+    cell_width = None
+    if is_mono:
+        assert_donor_is_mono(donor, donor_path)
+        donor_cmap = get_best_cmap(donor)
+        a_glyph = donor_cmap.get(ord('A'))
+        if a_glyph and a_glyph in donor["hmtx"].metrics:
+            cell_width = donor["hmtx"].metrics[a_glyph][0]
+        else:
+            cell_width = 600  # safe fallback for JBM Nerd Mono
+        log.info(f"  Donor cell width: {cell_width} units (from 'A')")
+
     # Step 1: Ensure base has both BMP and full-Unicode cmap subtables
     log.info("Step 1: Ensuring cmap subtable coverage...")
     ensure_cmap_subtables(base)
@@ -550,6 +679,13 @@ def merge_fonts(
         prefix="don_",
     )
     log.info(f"  -> {donor_count} glyphs transplanted")
+
+    # Step 2b: For mono builds, normalize any sub-cell advance widths to cell_width.
+    # WenKai Mono TC uses a 500/1000 grid; codepoints absent from JBM Nerd leak
+    # through at 500 wide. Bump all 0 < advance < cell_width to cell_width.
+    if is_mono:
+        log.info("Step 2b: Normalizing half-width advances to cell width...")
+        normalize_half_widths(base, cell_width)
 
     # Step 3: Rebuild glyph order for internal consistency
     log.info("Step 3: Rebuilding glyph order...")
@@ -570,12 +706,19 @@ def merge_fonts(
     log.info(f"Step 7: Setting {'monospaced' if is_mono else 'proportional'} metadata...")
     set_monospaced_metadata(base, is_mono)
 
-    # Step 8: Validate monospace integrity (only for mono builds)
+    # Step 7b: Set xAvgCharWidth using the OpenType spec weighted formula.
+    # Done after normalize_half_widths so widths are already corrected.
+    avg_w = compute_x_avg_char_width(base)
+    base["OS/2"].xAvgCharWidth = avg_w
+    log.info(f"  xAvgCharWidth set to {avg_w} (OpenType weighted formula)")
+
+    # Step 8: Validate monospace integrity
     if is_mono:
-        log.info("Step 8: Validating monospace integrity...")
-        validate_monospace_integrity(base)
+        log.info("Step 8: Validating monospace integrity (extended ranges)...")
+        validate_monospace_integrity(base, is_mono=True)
     else:
-        log.info("Step 8: Skipping monospace integrity check (non-mono build)")
+        log.info("Step 8: Validating monospace integrity (ASCII only)...")
+        validate_monospace_integrity(base, is_mono=False)
 
     # Step 9: Rebuild vmtx so every glyph has a valid vertical metrics entry.
     if "vmtx" in base and "vhea" in base:

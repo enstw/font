@@ -404,6 +404,10 @@ jobs:
           print("OFL compliance checks PASSED")
           EOF
 
+      - name: Verify monospace conformance
+        if: ${{ matrix.is_mono == true }}
+        run: python scripts/check_mono.py dist/${{ matrix.output_file }}
+
       - name: Upload built font
         uses: actions/upload-artifact@v6
         with:
