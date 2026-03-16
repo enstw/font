@@ -50,7 +50,7 @@ jobs:
           token: ${{ secrets.BOT_PAT }}
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -167,7 +167,7 @@ jobs:
           echo "Dispatching: git_tag=$GIT_TAG lxgw=$LXGW_TAG nerd=$NERD_TAG jbm=$JBM_TAG (prev: lxgw=$PREV_LXGW_TAG nerd=$PREV_NERD_TAG jbm=$PREV_JBM_TAG)"
 
       - name: Dispatch build-release workflow
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           github-token: ${{ secrets.BOT_PAT }}
           script: |
