@@ -530,20 +530,17 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.BOT_PAT }}
-          tag_name: ${{ needs.resolve-params.outputs.git_tag }}
-          name: "ENS Font v${{ needs.resolve-params.outputs.version }}"
-          body_path: /tmp/release_notes.md
-          draft: false
-          prerelease: false
-          files: |
-            dist/ENSFont-Light.ttf
-            dist/ENSFontMono-Light.ttf
-            dist/ENSFont-Regular.ttf
-            dist/ENSFontMono-Regular.ttf
-            dist/ENSFont-Bold.ttf
-            dist/ENSFontMono-Bold.ttf
-            dist/ENSFont.ttc
-            ENSFont-${{ needs.resolve-params.outputs.version }}.zip
+        env:
+          GH_TOKEN: ${{ secrets.BOT_PAT }}
+        run: |
+          gh release create "${{ needs.resolve-params.outputs.git_tag }}" \
+            --title "ENS Font v${{ needs.resolve-params.outputs.version }}" \
+            --notes-file /tmp/release_notes.md \
+            dist/ENSFont-Light.ttf \
+            dist/ENSFontMono-Light.ttf \
+            dist/ENSFont-Regular.ttf \
+            dist/ENSFontMono-Regular.ttf \
+            dist/ENSFont-Bold.ttf \
+            dist/ENSFontMono-Bold.ttf \
+            dist/ENSFont.ttc \
+            "ENSFont-${{ needs.resolve-params.outputs.version }}.zip"
