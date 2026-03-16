@@ -86,16 +86,16 @@ jobs:
 
           # Fallback: read from versions.json
           if [ -z "$GIT_TAG" ]; then
-            GIT_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['git_tag'])")
+            GIT_TAG=$(python3 scripts/parse_versions.py versions.json packaging.git_tag --required)
           fi
           if [ -z "$LXGW_TAG" ]; then
-            LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['lxgw_wenkai']['tag'])")
+            LXGW_TAG=$(python3 scripts/parse_versions.py versions.json upstream.lxgw_wenkai.tag --required)
           fi
           if [ -z "$NERD_TAG" ]; then
-            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['nerd_fonts']['tag'])")
+            NERD_TAG=$(python3 scripts/parse_versions.py versions.json upstream.nerd_fonts.tag --required)
           fi
           if [ -z "$JBM_TAG" ]; then
-            JBM_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['jetbrains_mono']['tag'])")
+            JBM_TAG=$(python3 scripts/parse_versions.py versions.json upstream.jetbrains_mono.tag --required)
           fi
 
           # Extract X.Y.Z from tag (strip leading 'v', take up to first '_')
@@ -109,15 +109,15 @@ jobs:
           PREV_NERD="${{ github.event.client_payload.prev_nerd_tag }}"
 
           if [ -z "$PREV_LXGW" ]; then
-            PREV_LXGW=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_lxgw_tag', ''))")
+            PREV_LXGW=$(python3 scripts/parse_versions.py versions.json packaging.prev_lxgw_tag --default '')
           fi
           if [ -z "$PREV_NERD" ]; then
-            PREV_NERD=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_nerd_tag', ''))")
+            PREV_NERD=$(python3 scripts/parse_versions.py versions.json packaging.prev_nerd_tag --default '')
           fi
 
           PREV_JBM="${{ github.event.client_payload.prev_jbm_tag }}"
           if [ -z "$PREV_JBM" ]; then
-            PREV_JBM=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_jbm_tag', ''))")
+            PREV_JBM=$(python3 scripts/parse_versions.py versions.json packaging.prev_jbm_tag --default '')
           fi
 
           LXGW_CHANGED="false"
@@ -175,12 +175,12 @@ jobs:
 
           echo "LXGW WenKai TC downloads:"
           ls -lh fonts/wenkai/
-          test -f fonts/wenkai/LXGWWenKaiTC-Light.ttf
-          test -f fonts/wenkai/LXGWWenKaiTC-Regular.ttf
-          test -f fonts/wenkai/LXGWWenKaiTC-Medium.ttf
-          test -f fonts/wenkai/LXGWWenKaiMonoTC-Light.ttf
-          test -f fonts/wenkai/LXGWWenKaiMonoTC-Regular.ttf
-          test -f fonts/wenkai/LXGWWenKaiMonoTC-Medium.ttf
+          test -f fonts/wenkai/LXGWWenKaiTC-Light.ttf || exit 1
+          test -f fonts/wenkai/LXGWWenKaiTC-Regular.ttf || exit 1
+          test -f fonts/wenkai/LXGWWenKaiTC-Medium.ttf || exit 1
+          test -f fonts/wenkai/LXGWWenKaiMonoTC-Light.ttf || exit 1
+          test -f fonts/wenkai/LXGWWenKaiMonoTC-Regular.ttf || exit 1
+          test -f fonts/wenkai/LXGWWenKaiMonoTC-Medium.ttf || exit 1
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -217,12 +217,11 @@ jobs:
           echo "Nerd Fonts Symbols Only files:"
           ls fonts/nerd_symbols/
           # Locate the Regular TTF (filename may vary across nerd-fonts releases)
-          SYMBOLS_TTF=$(ls fonts/nerd_symbols/NerdFontsSymbolsOnly-Regular.ttf 2>/dev/null \
-                     || ls fonts/nerd_symbols/NerdFontsSymbolsNerdFont-Regular.ttf 2>/dev/null \
-                     || ls fonts/nerd_symbols/*.ttf | grep -i regular | head -1 \
-                     || ls fonts/nerd_symbols/*.ttf | head -1)
+          SYMBOLS_TTF=$(find fonts/nerd_symbols -maxdepth 1 -name "*Regular*.ttf" | head -1)
+          [ -f "$SYMBOLS_TTF" ] || SYMBOLS_TTF=$(find fonts/nerd_symbols -maxdepth 1 -name "*.ttf" | head -1)
+          [ -f "$SYMBOLS_TTF" ] || { echo "ERROR: No symbols TTF found in fonts/nerd_symbols/"; exit 1; }
           echo "Using symbols TTF: $SYMBOLS_TTF"
-          test -n "$SYMBOLS_TTF"
+          echo "SYMBOLS_TTF=$SYMBOLS_TTF" >> "$GITHUB_ENV"
 
           JBM_ARCHIVE="JetBrainsMono.tar.xz"
           JBM_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${JBM_ARCHIVE}"
@@ -232,18 +231,14 @@ jobs:
           tar -xJf "/tmp/${JBM_ARCHIVE}" -C fonts/jetbrainsmono/
           echo "JetBrainsMonoNerdFontMono fonts found:"
           ls fonts/jetbrainsmono/JetBrainsMonoNerdFontMono*.ttf
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Light.ttf
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Light.ttf || exit 1
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf || exit 1
+          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf || exit 1
 
       - name: Patch JetBrains Sans with Nerd Fonts symbols (non-mono pre-patch)
         run: |
           mkdir -p fonts/jetbrains_sans_patched
 
-          SYMBOLS_TTF=$(ls fonts/nerd_symbols/NerdFontsSymbolsOnly-Regular.ttf 2>/dev/null \
-                     || ls fonts/nerd_symbols/NerdFontsSymbolsNerdFont-Regular.ttf 2>/dev/null \
-                     || ls fonts/nerd_symbols/*.ttf | grep -i regular | head -1 \
-                     || ls fonts/nerd_symbols/*.ttf | head -1)
           echo "Nerd symbols source: $SYMBOLS_TTF"
 
           for STYLE in Light Regular Bold; do
@@ -255,9 +250,9 @@ jobs:
 
           echo "Patched fonts:"
           ls -lh fonts/jetbrains_sans_patched/
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Light.ttf
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Light.ttf || exit 1
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf || exit 1
+          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf || exit 1
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v6

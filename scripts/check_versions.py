@@ -27,8 +27,23 @@ import json
 import os
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+
+def _get_with_retry(url: str, headers: dict, timeout: int = 30,
+                    retries: int = 3) -> "requests.Response":
+    import requests
+    last_exc = None
+    for attempt in range(retries):
+        if attempt > 0:
+            time.sleep(2 ** attempt)  # 2s, 4s
+        try:
+            return requests.get(url, headers=headers, timeout=timeout)
+        except requests.RequestException as e:
+            last_exc = e
+    raise last_exc
 
 def release_tag_exists(owner_repo: str, tag: str, token: str) -> bool:
     """
@@ -44,11 +59,9 @@ def release_tag_exists(owner_repo: str, tag: str, token: str) -> bool:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    import requests
-
     try:
-        resp = requests.get(url, headers=headers, timeout=30)
-    except requests.RequestException as e:
+        resp = _get_with_retry(url, headers=headers, timeout=30)
+    except Exception as e:
         print(f"WARNING: Could not check release tag '{tag}': {e}", file=sys.stderr)
         # Assume tag exists on network error to avoid false rebuild triggers
         return True
@@ -78,9 +91,7 @@ def get_latest_release(repo: str, token: str) -> dict:
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    import requests
-
-    resp = requests.get(url, headers=headers, timeout=30)
+    resp = _get_with_retry(url, headers=headers, timeout=30)
     resp.raise_for_status()
     data = resp.json()
 
@@ -132,8 +143,6 @@ def get_jetbrains_sans_version(source_url: str) -> str:
 
     Returns "unknown" on failure — non-fatal, build still proceeds.
     """
-    import requests
-
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -143,7 +152,7 @@ def get_jetbrains_sans_version(source_url: str) -> str:
     }
     try:
         # Step 1: fetch homepage to locate the default-page CSS URL
-        resp = requests.get(source_url, headers=headers, timeout=30)
+        resp = _get_with_retry(source_url, headers=headers, timeout=30)
         resp.raise_for_status()
         html = resp.text
     except Exception as e:
@@ -158,7 +167,7 @@ def get_jetbrains_sans_version(source_url: str) -> str:
     css_url = f"https://www.jetbrains.com{m.group(1)}"
     try:
         # Step 2: fetch CSS and extract version from the variable font URL
-        resp = requests.get(css_url, headers=headers, timeout=30)
+        resp = _get_with_retry(css_url, headers=headers, timeout=30)
         resp.raise_for_status()
         css = resp.text
     except Exception as e:

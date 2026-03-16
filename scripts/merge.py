@@ -442,13 +442,14 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
         post.isFixedPitch = 1
         os2.panose.bProportion = 9
         
-        # Set xAvgCharWidth to the width of a standard Latin character (e.g., 'h' at U+0068)
-        # For monospaced fonts, this should be the width of all Latin characters.
+        # Set xAvgCharWidth to the width of 'h' (U+0068) via cmap, prefix-independent.
         hmtx = font["hmtx"]
-        if "h" in hmtx.metrics:
-            os2.xAvgCharWidth = hmtx.metrics["h"][0]
-        elif "don_un0068" in hmtx.metrics:
-            os2.xAvgCharWidth = hmtx.metrics["don_un0068"][0]
+        cmap = get_best_cmap(font)
+        h_glyph = cmap.get(0x0068) if cmap else None
+        if h_glyph and h_glyph in hmtx.metrics:
+            os2.xAvgCharWidth = hmtx.metrics[h_glyph][0]
+        else:
+            log.warning("Could not find 'h' (U+0068) for xAvgCharWidth; value unchanged")
     else:
         log.info("Setting proportional flags (isFixedPitch=0, Panose=2)")
         post.isFixedPitch = 0

@@ -84,6 +84,7 @@ jobs:
       - name: Commit updated versions.json
         if: steps.check.outputs.VERSIONS_CHANGED == 'true'
         run: |
+          set -e
           git config user.name  "ENS Font Bot"
           git config user.email "bot@users.noreply.github.com"
           git add versions.json
@@ -106,6 +107,7 @@ jobs:
       - name: Bump patch version for force rebuild
         if: github.event.inputs.force_build == 'true' && needs.check-versions.outputs.versions_changed != 'true'
         run: |
+          set -e
           python3 scripts/check_versions.py --bump-patch --versions-file versions.json
           git config user.name  "ENS Font Bot"
           git config user.email "bot@users.noreply.github.com"
@@ -129,29 +131,29 @@ jobs:
           PREV_JBM_TAG="${{ needs.check-versions.outputs.prev_jbm_tag }}"
 
           if [ -z "$GIT_TAG" ]; then
-            GIT_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['git_tag'])")
+            GIT_TAG=$(python3 scripts/parse_versions.py versions.json packaging.git_tag --required)
           fi
           if [ -z "$LXGW_TAG" ]; then
-            LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['lxgw_wenkai']['tag'])")
+            LXGW_TAG=$(python3 scripts/parse_versions.py versions.json upstream.lxgw_wenkai.tag --required)
           fi
           if [ -z "$NERD_TAG" ]; then
-            NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['nerd_fonts']['tag'])")
+            NERD_TAG=$(python3 scripts/parse_versions.py versions.json upstream.nerd_fonts.tag --required)
           fi
           if [ -z "$VERSION" ]; then
-            VERSION=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging']['version'])")
+            VERSION=$(python3 scripts/parse_versions.py versions.json packaging.version --required)
           fi
           # force_build / first-run: prev tags are empty → build-release will treat both as changed
           if [ -z "$PREV_LXGW_TAG" ]; then
-            PREV_LXGW_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_lxgw_tag', ''))")
+            PREV_LXGW_TAG=$(python3 scripts/parse_versions.py versions.json packaging.prev_lxgw_tag --default '')
           fi
           if [ -z "$PREV_NERD_TAG" ]; then
-            PREV_NERD_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_nerd_tag', ''))")
+            PREV_NERD_TAG=$(python3 scripts/parse_versions.py versions.json packaging.prev_nerd_tag --default '')
           fi
           if [ -z "$JBM_TAG" ]; then
-            JBM_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['upstream']['jetbrains_mono']['tag'])")
+            JBM_TAG=$(python3 scripts/parse_versions.py versions.json upstream.jetbrains_mono.tag --required)
           fi
           if [ -z "$PREV_JBM_TAG" ]; then
-            PREV_JBM_TAG=$(python3 -c "import json; d=json.load(open('versions.json')); print(d['packaging'].get('prev_jbm_tag', ''))")
+            PREV_JBM_TAG=$(python3 scripts/parse_versions.py versions.json packaging.prev_jbm_tag --default '')
           fi
 
           echo "git_tag=$GIT_TAG"           >> "$GITHUB_OUTPUT"
