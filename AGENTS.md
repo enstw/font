@@ -55,7 +55,7 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
 
 ### GitHub Actions
 
-- **Always use the latest version when introducing a new action.** Check the action's releases page before adding it. Never copy an old version from an existing workflow — look it up fresh.
+- **Always use the latest version when introducing a new action.** Check the action's releases page before adding it. Never copy an old version from an existing workflow — look it up fresh. Floating major tags (e.g. `@v4`) are acceptable when the action author maintains them to track the latest release in that major version.
 
 ### CI / workflow
 
