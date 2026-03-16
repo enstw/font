@@ -415,18 +415,22 @@ def assert_donor_is_mono(donor: TTFont, donor_path: str) -> None:
 
 def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     """
-    After transplant, enforce the {0, cell_width, 2*cell_width} advance grid.
+    After transplant, enforce a cell_width-aligned advance grid.
 
     WenKai Mono TC uses a 500/1000 grid (half/full), but ENSFontMono uses a
-    600/1200 grid (JBM Nerd Mono defines the half-cell as 600).  Two passes:
-      1. Sub-half-cell (0 < adv < cell_width):      bump to cell_width   (500→600)
-      2. Sub-full-cell (cell_width < adv < 2*cell_width): bump to 2*cell_width (1000→1200)
+    600/1200 grid (JBM Nerd Mono defines the half-cell as 600).  Three passes:
+      1. Sub-half-cell  (0 < adv < cell_width):         bump to cell_width   (500→600)
+      2. Sub-full-cell  (cell_width < adv < 2*cell_width): bump to 2*cell_width (1000→1200)
+      3. Over-full-cell (adv > 2*cell_width):            round up to nearest multiple
+                                                         of 2*cell_width (2000→2400, 3000→3600)
     Combining marks (advance=0) and correctly-sized glyphs are untouched.
     """
+    import math
     hmtx = font["hmtx"]
     full_width = 2 * cell_width
     half_corrected = 0
     full_corrected = 0
+    over_corrected = 0
     for gname, (adv, lsb) in list(hmtx.metrics.items()):
         if 0 < adv < cell_width:
             log.debug(f"  normalize half: {gname} {adv} -> {cell_width}")
@@ -436,9 +440,15 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
             log.debug(f"  normalize full: {gname} {adv} -> {full_width}")
             hmtx.metrics[gname] = (full_width, lsb)
             full_corrected += 1
+        elif adv > full_width:
+            rounded = math.ceil(adv / full_width) * full_width
+            log.debug(f"  normalize over: {gname} {adv} -> {rounded}")
+            hmtx.metrics[gname] = (rounded, lsb)
+            over_corrected += 1
     log.info(
         f"  normalize_half_widths: {half_corrected} glyphs -> {cell_width}, "
-        f"{full_corrected} glyphs -> {full_width}"
+        f"{full_corrected} glyphs -> {full_width}, "
+        f"{over_corrected} glyphs rounded to cell-aligned multiple"
     )
 
 
@@ -520,9 +530,6 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
         return
 
     # Extended check for mono builds
-    # U+2E3A (2-em dash) and U+2E3B (3-em dash) are intentional multi-cell exceptions
-    em_dash_exceptions = {0x2E3A, 0x2E3B}
-
     extended_ranges = [
         (0x0100, 0x024F, "Latin Extended-A/B"),
         (0x0370, 0x03FF, "Greek & Coptic"),
@@ -534,11 +541,11 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
     violations = []
     for start, end, block_name in extended_ranges:
         for cp in range(start, end + 1):
-            if cp in cmap and cp not in em_dash_exceptions:
+            if cp in cmap:
                 gname = cmap[cp]
                 if gname in hmtx.metrics:
                     adv = hmtx.metrics[gname][0]
-                    if adv != 0 and adv != cell_width and adv != 2 * cell_width:
+                    if adv != 0 and adv % cell_width != 0:
                         violations.append((cp, adv, block_name))
 
     if violations:

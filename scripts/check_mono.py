@@ -8,9 +8,9 @@ Usage:
 Checks:
   - post.isFixedPitch == 1
   - OS/2 PANOSE proportion == 9
-  - Advance width histogram: acceptable widths are {0, cell_width, 2*cell_width}
-    plus known exceptions (2-em dash U+2E3A, 3-em dash U+2E3B).
-    Reports any other widths with codepoint samples.
+  - Advance width histogram: acceptable widths are 0 or any positive multiple
+    of cell_width (half-width, full-width CJK, 2-em/3-em dashes, etc.).
+    Reports any non-zero, non-aligned widths with codepoint samples.
 
 Exit 0 = pass, exit 1 = violations found.
 
@@ -77,19 +77,14 @@ def check_mono(font_path: str, cell_width: int) -> bool:
     for cp, gname in cmap.items():
         glyph_to_cps[gname].append(cp)
 
-    # Acceptable advances: 0 (combining marks), cell_width (half-width),
-    # 2*cell_width (full-width CJK / double-wide Nerd icons).
-    # U+2E3A (2-em dash) and U+2E3B (3-em dash) are intentional multi-cell exceptions.
-    # Any other non-zero width is a violation.
-    full_width = 2 * cell_width
-    em_dash_exceptions = {0x2E3A, 0x2E3B}
+    # Acceptable advances: 0 (combining marks) or any positive multiple of
+    # cell_width (half-width, full-width CJK, 2-em/3-em dashes, etc.).
+    # Any non-zero advance that isn't cell-width-aligned is a violation.
     bad_widths: dict[int, list[tuple]] = defaultdict(list)
     for gname, (adv, _lsb) in hmtx.metrics.items():
-        if adv == 0 or adv == cell_width or adv == full_width:
+        if adv == 0 or adv % cell_width == 0:
             continue
         cps = glyph_to_cps.get(gname, [])
-        if any(cp in em_dash_exceptions for cp in cps):
-            continue
         if cps:
             for cp in cps[:3]:
                 bad_widths[adv].append((cp, gname))
@@ -117,7 +112,7 @@ def check_mono(font_path: str, cell_width: int) -> bool:
             print(f"  VIOLATION: {v}", file=sys.stderr)
         return False
 
-    print(f"PASS: {font_path}  (acceptable widths: {{0, {cell_width}, {2*cell_width}}})")
+    print(f"PASS: {font_path}  (acceptable widths: 0 or multiples of {cell_width})")
     return True
 
 
