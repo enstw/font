@@ -107,6 +107,11 @@ def copy_glyph(
     Components are namespaced with dst_name prefix to avoid collisions.
 
     Copies: glyf table entry (outlines) + hmtx table entry (advance width + LSB).
+
+    Glyph-level TrueType instructions are stripped from transplanted glyphs.
+    The merged font keeps the base font's global hinting tables, so donor
+    glyph programs would otherwise execute against an incompatible CVT/FDEF/PREP
+    environment and can rasterize with visible artifacts.
     """
     src_glyf = src_font["glyf"]
     dst_glyf = dst_font["glyf"]
@@ -126,9 +131,12 @@ def copy_glyph(
             comp_dst = f"_ens_{comp_src}"
             copy_glyph(src_font, dst_font, comp_src, comp_dst)
             component.glyphName = comp_dst
+        src_glyph.removeHinting()
         dst_glyf[dst_name] = src_glyph  # already a detached copy
     else:
-        dst_glyf[dst_name] = copy.deepcopy(src_glyph)
+        copied = copy.deepcopy(src_glyph)
+        copied.removeHinting()
+        dst_glyf[dst_name] = copied
     dst_hmtx.metrics[dst_name] = copy.deepcopy(src_hmtx.metrics[src_name])
 
 
