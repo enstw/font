@@ -419,9 +419,11 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     After transplant, enforce a cell_width-aligned advance grid.
 
     WenKai Mono TC uses a 500/1000 grid (half/full), but ENSFontMono uses a
-    600/1200 grid (JBM Nerd Mono defines the half-cell as 600).  Three passes:
+    600/1200 grid. Three passes:
       1. Sub-half-cell  (0 < adv < cell_width):         bump to cell_width   (500→600)
-      2. Sub-full-cell  (cell_width < adv < 2*cell_width): bump to 2*cell_width (1000→1200)
+      2. Between half/full (cell_width < adv < 2*cell_width): snap by midpoint
+         so near-half widths stay half-width (602→600) while true full-width
+         WenKai glyphs still expand to full-width (1000→1200)
       3. Over-full-cell (adv > 2*cell_width):            round up to nearest multiple
                                                          of 2*cell_width (2000→2400, 3000→3600)
     Combining marks (advance=0) and correctly-sized glyphs are untouched.
@@ -429,6 +431,7 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     import math
     hmtx = font["hmtx"]
     full_width = 2 * cell_width
+    half_to_full_midpoint = (cell_width + full_width) / 2
     half_corrected = 0
     full_corrected = 0
     over_corrected = 0
@@ -439,10 +442,17 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
             hmtx.metrics[gname] = (cell_width, new_lsb)
             half_corrected += 1
         elif cell_width < adv < full_width:
-            new_lsb = lsb + (full_width - adv) // 2
-            log.debug(f"  normalize full: {gname} {adv} -> {full_width} (lsb {lsb} -> {new_lsb})")
-            hmtx.metrics[gname] = (full_width, new_lsb)
-            full_corrected += 1
+            target_width = cell_width if adv < half_to_full_midpoint else full_width
+            new_lsb = lsb + (target_width - adv) // 2
+            log.debug(
+                f"  normalize mid: {gname} {adv} -> {target_width} "
+                f"(lsb {lsb} -> {new_lsb})"
+            )
+            hmtx.metrics[gname] = (target_width, new_lsb)
+            if target_width == cell_width:
+                half_corrected += 1
+            else:
+                full_corrected += 1
         elif adv > full_width:
             rounded = math.ceil(adv / full_width) * full_width
             new_lsb = lsb + (rounded - adv) // 2
