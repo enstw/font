@@ -46,6 +46,17 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   (donor overrides WenKai) and `patch.py` (NerdFontsSymbolsOnly overrides
   JetBrains Sans). Do NOT add range filtering; the fonts naturally partition
   the Unicode space.
+- **Block elements (U+2580–U+259F) must be rescaled after transplant.** The Nerd
+  Fonts patcher increases Meslo's ascent (~1576→2001 in 2048 UPM) for tall icons
+  but does NOT update block element outlines. Meslo ships hinting programs that
+  snap them to fill the cell at render time, but `copy_glyph` strips donor hinting
+  (incompatible FDEF/CVT). Without hinting the raw gap is exposed. Fix: after
+  `set_os2_metrics`, call `fix_block_elements` to proportionally rescale y-coords
+  from the FULL BLOCK's raw bounds (the original pre-NF ascent/descent) to the
+  font's actual `[hhea.descent, hhea.ascent]`. Only y-coords are touched; x-coords
+  preserve the intentional horizontal bleed for seamless tiling. Box drawing chars
+  (U+2500–U+257F) are unaffected — the NF patcher already updated their vertical
+  strokes to reach the new ascent.
 - **Glyph order must be sorted for reproducible binary output.** Sort new
   glyphs in `fix_glyph_order` to avoid non-deterministic TTF diffs.
 - **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold styles; use Light as the CJK base for Light styles; use Regular as the CJK base for others.

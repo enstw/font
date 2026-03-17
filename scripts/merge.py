@@ -724,6 +724,79 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
             os2.panose.bProportion = 2
 
 
+def fix_block_elements(font: TTFont) -> None:
+    """
+    Rescale block element glyphs (U+2580-U+259F) so they fill the font's actual
+    ascent-to-descent cell.
+
+    Background: the Nerd Fonts patcher increases Meslo's hhea.ascent from ~1576 to
+    2001 (in 2048 UPM) to accommodate tall icon glyphs, but does NOT update the
+    block element outlines.  After UPM scaling to 1000, the FULL BLOCK ends up with
+    yMax=770 while hhea.ascent=977 — a 207-unit gap at the top.  Meslo ships a
+    hinting program on each block element that snaps it to fill the cell at render
+    time, but copy_glyph strips all donor hinting (removeHinting) because it
+    references Meslo's FDEF/CVT tables which are absent from the merged font.
+
+    Fix: use the FULL BLOCK glyph's raw bounding box as the "design cell" (the
+    original pre-NF-patch ascent/descent) and proportionally rescale every block
+    element glyph's y-coordinates from [design_yMin, design_yMax] to
+    [hhea.descent, hhea.ascent].
+
+    Must be called after set_os2_metrics() so the final metrics are in place.
+    Only y-coordinates are touched; x-coordinates are preserved so the
+    intentional ±bleed at horizontal cell edges continues to tile correctly.
+    """
+    cmap = get_best_cmap(font)
+    if 0x2588 not in cmap:
+        log.warning("fix_block_elements: U+2588 FULL BLOCK not in cmap — skipping")
+        return
+
+    glyf_table = font["glyf"]
+    fb_name = cmap[0x2588]
+    fb = glyf_table[fb_name]
+    fb.recalcBounds(glyf_table)
+    design_asc = fb.yMax
+    design_desc = fb.yMin
+    design_cell = design_asc - design_desc
+
+    font_asc = font["hhea"].ascent
+    font_desc = font["hhea"].descent
+    font_cell = font_asc - font_desc
+
+    if design_cell == 0:
+        log.warning("fix_block_elements: FULL BLOCK has zero height — skipping")
+        return
+
+    if design_asc == font_asc and design_desc == font_desc:
+        log.info("fix_block_elements: block elements already match font metrics — nothing to do")
+        return
+
+    log.info(
+        f"fix_block_elements: rescaling y from design cell [{design_desc}, {design_asc}] "
+        f"to font cell [{font_desc}, {font_asc}]"
+    )
+
+    fixed = 0
+    seen: set[str] = set()
+    for cp in range(0x2580, 0x25A0):  # Block Elements
+        if cp not in cmap:
+            continue
+        gname = cmap[cp]
+        if gname in seen:
+            continue
+        seen.add(gname)
+        g = glyf_table[gname]
+        if g.numberOfContours <= 0 or not hasattr(g, "coordinates"):
+            continue
+        for i, (x, y) in enumerate(g.coordinates):
+            new_y = round(font_desc + (y - design_desc) / design_cell * font_cell)
+            g.coordinates[i] = (x, new_y)
+        g.recalcBounds(glyf_table)
+        fixed += 1
+
+    log.info(f"fix_block_elements: rescaled {fixed} glyphs")
+
+
 def rebuild_vmtx(font: TTFont) -> None:
     """
     Rebuild the vmtx table so every glyph in the font has a valid entry.
@@ -801,11 +874,11 @@ def merge_fonts(
     log.info(f"Loading donor font: {donor_path}")
     donor = TTFont(donor_path)
 
-    # Step 0: UPM compatibility check (scale donor if needed)
-    log.info("Step 0: Checking UPM compatibility...")
+    # UPM compatibility check (scale donor if needed)
+    log.info("Checking UPM compatibility...")
     check_upm_compatibility(base, donor)
 
-    # Step 0b: For mono builds, assert donor is monospaced and pin output metrics
+    # For mono builds, assert donor is monospaced and pin output metrics
     # to the canonical 600/1200 grid. The donor width is logged for debugging,
     # but the final merged font should not drift with donor scaling artifacts.
     cell_width = None
@@ -821,14 +894,14 @@ def merge_fonts(
             log.warning("  Donor cell width unavailable; using canonical mono width")
         log.info(f"  Canonical mono cell width: {cell_width} units")
 
-    # Step 1: Ensure base has both BMP and full-Unicode cmap subtables
-    log.info("Step 1: Ensuring cmap subtable coverage...")
+    # Ensure base has both BMP and full-Unicode cmap subtables
+    log.info("Ensuring cmap subtable coverage...")
     ensure_cmap_subtables(base)
 
-    # Step 2: Transplant all donor glyphs into WenKai.
+    # Transplant all donor glyphs into WenKai.
     # Donor codepoints overwrite WenKai entries; WenKai is the failsafe
     # and only retains codepoints the donor does not cover.
-    log.info("Step 2: Transplanting donor glyphs (donor overrides WenKai)...")
+    log.info("Transplanting donor glyphs (donor overrides WenKai)...")
     donor_count = transplant_glyphs(
         src_font=donor,
         dst_font=base,
@@ -836,59 +909,66 @@ def merge_fonts(
     )
     log.info(f"  -> {donor_count} glyphs transplanted")
 
-    # Step 2b: For mono builds, normalize any sub-cell advance widths to cell_width.
+    # For mono builds, normalize any sub-cell advance widths to cell_width.
     # WenKai Mono TC uses a 500/1000 grid; codepoints absent from the donor leak
     # through at 500 wide. Bump all 0 < advance < cell_width to cell_width.
     if is_mono:
-        log.info("Step 2b: Normalizing half-width advances to cell width...")
+        log.info("Normalizing half-width advances to cell width...")
         normalize_half_widths(base, cell_width)
 
-    # Step 3: Rebuild glyph order for internal consistency
-    log.info("Step 3: Rebuilding glyph order...")
+    # Rebuild glyph order for internal consistency
+    log.info("Rebuilding glyph order...")
     fix_glyph_order(base)
 
-    # Step 4: Suppress verbose post table glyph names (saves ~20% file size)
+    # Suppress verbose post table glyph names (saves ~20% file size)
     base["post"].formatType = 3.0
 
-    # Step 5: Set font metadata for OFL compliance
-    log.info("Step 5: Setting font metadata (OFL compliance)...")
+    # Set font metadata for OFL compliance
+    log.info("Setting font metadata (OFL compliance)...")
     set_font_metadata(base, family_name, ps_family, style, version, lxgw_ver, nerd_ver)
 
-    # Step 6: Set OS/2 and hhea metrics from donor reference
-    log.info("Step 6: Setting OS/2/hhea metrics from donor...")
+    # Set OS/2 and hhea metrics from donor reference
+    log.info("Setting OS/2/hhea metrics from donor...")
     set_os2_metrics(base, donor)
 
-    # Step 7: Set monospaced metadata
-    log.info(f"Step 7: Setting {'monospaced' if is_mono else 'proportional'} metadata...")
+    # Fix block element glyphs (U+2580-U+259F).
+    # Nerd Fonts patching increased Meslo's ascent but left block element outlines
+    # at the old bounds. Meslo's hinting corrects this at render time, but we strip
+    # donor hinting (removeHinting). Rescale y-coordinates to fill the font cell.
+    log.info("Fixing block element glyph bounds...")
+    fix_block_elements(base)
+
+    # Set monospaced metadata
+    log.info(f"Setting {'monospaced' if is_mono else 'proportional'} metadata...")
     set_monospaced_metadata(base, is_mono)
 
-    # Step 7b: Set xAvgCharWidth using the OpenType spec weighted formula.
+    # Set xAvgCharWidth using the OpenType spec weighted formula.
     # Done after normalize_half_widths so widths are already corrected.
     avg_w = compute_x_avg_char_width(base)
     base["OS/2"].xAvgCharWidth = avg_w
     log.info(f"  xAvgCharWidth set to {avg_w} (OpenType weighted formula)")
 
-    # Step 8: Validate monospace integrity
+    # Validate monospace integrity
     if is_mono:
-        log.info("Step 8: Validating monospace integrity (extended ranges)...")
+        log.info("Validating monospace integrity (extended ranges)...")
         validate_monospace_integrity(base, is_mono=True)
     else:
-        log.info("Step 8: Validating monospace integrity (ASCII only)...")
+        log.info("Validating monospace integrity (ASCII only)...")
         validate_monospace_integrity(base, is_mono=False)
 
-    # Step 9: Rebuild vmtx so every glyph has a valid vertical metrics entry.
+    # Rebuild vmtx so every glyph has a valid vertical metrics entry.
     if "vmtx" in base and "vhea" in base:
-        log.info("Step 9: Rebuilding vmtx for full glyph coverage...")
+        log.info("Rebuilding vmtx for full glyph coverage...")
         rebuild_vmtx(base)
 
     if debug_vertical_cps:
-        log.info("Step 10: Logging vertical alignment diagnostics...")
+        log.info("Logging vertical alignment diagnostics...")
         debug_vertical_alignment(base_before, donor, base, debug_vertical_cps)
 
-    # Step 11: Save
+    # Save
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    log.info(f"Step 11: Saving to {output_path} ...")
+    log.info(f"Saving to {output_path} ...")
     base.save(str(output))
 
     size_kb = output.stat().st_size // 1024
