@@ -753,10 +753,10 @@ def fix_block_elements(font: TTFont) -> None:
 
     glyf_table = font["glyf"]
     fb_name = cmap[0x2588]
-    fb = glyf_table[fb_name]
-    fb.recalcBounds(glyf_table)
-    design_asc = fb.yMax
-    design_desc = fb.yMin
+    design_desc, design_asc = get_glyph_bounds(font, fb_name)
+    if design_desc is None or design_asc is None:
+        log.warning("fix_block_elements: FULL BLOCK bounds unavailable — skipping")
+        return
     design_cell = design_asc - design_desc
 
     font_asc = font["hhea"].ascent
@@ -786,7 +786,7 @@ def fix_block_elements(font: TTFont) -> None:
             continue
         seen.add(gname)
         g = glyf_table[gname]
-        if g.numberOfContours <= 0 or not hasattr(g, "coordinates"):
+        if g.numberOfContours <= 0:
             continue
         for i, (x, y) in enumerate(g.coordinates):
             new_y = round(font_desc + (y - design_desc) / design_cell * font_cell)
