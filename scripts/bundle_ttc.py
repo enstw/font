@@ -19,12 +19,10 @@ from fontTools.ttLib.ttCollection import TTCollection
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
-# Canonical order: non-mono first (Light, Regular, Bold), then mono
+# Canonical order: non-mono first, then mono
 FONT_ORDER = [
-    "ENSFont-Light.ttf",
     "ENSFont-Regular.ttf",
     "ENSFont-Bold.ttf",
-    "ENSFontMono-Light.ttf",
     "ENSFontMono-Regular.ttf",
     "ENSFontMono-Bold.ttf",
 ]
@@ -69,7 +67,7 @@ def main():
     parser.add_argument(
         "--input-dir",
         default="dist",
-        help="Directory containing the 6 ENS Font TTF files (default: dist)",
+        help="Directory containing the ENS Font TTF files (default: dist)",
     )
     parser.add_argument(
         "--output",

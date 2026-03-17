@@ -60,9 +60,9 @@ THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 
 ---
 
-## 2. ASCII/English Characters: MesloLGM (Apache License 2.0)
+## 2. ASCII/English Characters: Meslo LGSDZ (Apache License 2.0)
 
-The ASCII and basic Latin characters patched into ENS Font are derived from MesloLGM.
+The ASCII and basic Latin characters patched into ENS Font are derived from Meslo LGSDZ.
 
 Copyright 2009, 2010, 2013 André Berg
 

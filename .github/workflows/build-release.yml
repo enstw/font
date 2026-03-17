@@ -6,13 +6,13 @@
 #   - repository_dispatch (event: upstream-updated) from check-upstream.yml
 #   - workflow_dispatch for manual builds
 #
-# Produces six TTF files: (Light, Regular, Bold) x (ENS Font, ENS Font Mono)
-# plus a TrueType Collection (ENSFont.ttc) bundling all six,
+# Produces four TTF files: (Regular, Bold) x (ENS Font, ENS Font Mono)
+# plus a TrueType Collection (ENSFont.ttc) bundling all four,
 # packaged into a ZIP archive and published as a GitHub Release.
 #
 # Upstream donor mapping:
-#   - ENS Font (non-mono): JetBrains Sans + NerdFontsSymbolsOnly (pre-patched by patch.py)
-#   - ENS Font Mono:       JetBrainsMono Nerd Font Mono
+#   - ENS Font (non-mono): Meslo LGSDZ Nerd Font
+#   - ENS Font Mono:       Meslo LGSDZ Nerd Font Mono
 #
 # Required secrets:
 #   BOT_PAT  - Fine-grained PAT with: contents:write
@@ -22,7 +22,7 @@
 #       |
 #   download-fonts
 #       |
-#   build (matrix x6, parallel)
+#   build (matrix x4, parallel)
 #       |
 #   bundle-ttc
 #       |
@@ -45,10 +45,6 @@ on:
       nerd_tag:
         description: "Nerd Fonts release tag (e.g. v3.4.0)"
         required: false
-      jbm_tag:
-        description: "JetBrains Mono release tag (e.g. v2.304)"
-        required: false
-
 permissions:
   contents: write
 
@@ -66,10 +62,8 @@ jobs:
       version: ${{ steps.params.outputs.version }}
       lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
       nerd_tag: ${{ steps.params.outputs.nerd_tag }}
-      jbm_tag: ${{ steps.params.outputs.jbm_tag }}
       lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
       nerd_changed: ${{ steps.params.outputs.nerd_changed }}
-      jbm_changed: ${{ steps.params.outputs.jbm_changed }}
 
     steps:
       - name: Checkout repository
@@ -82,8 +76,6 @@ jobs:
           GIT_TAG="${{ github.event.client_payload.git_tag || github.event.inputs.git_tag }}"
           LXGW_TAG="${{ github.event.client_payload.lxgw_tag || github.event.inputs.lxgw_tag }}"
           NERD_TAG="${{ github.event.client_payload.nerd_tag || github.event.inputs.nerd_tag }}"
-          JBM_TAG="${{ github.event.client_payload.jbm_tag || github.event.inputs.jbm_tag }}"
-
           # Fallback: read from versions.json
           if [ -z "$GIT_TAG" ]; then
             GIT_TAG=$(python3 scripts/parse_versions.py versions.json packaging.git_tag --required)
@@ -94,10 +86,6 @@ jobs:
           if [ -z "$NERD_TAG" ]; then
             NERD_TAG=$(python3 scripts/parse_versions.py versions.json upstream.nerd_fonts.tag --required)
           fi
-          if [ -z "$JBM_TAG" ]; then
-            JBM_TAG=$(python3 scripts/parse_versions.py versions.json upstream.jetbrains_mono.tag --required)
-          fi
-
           # Extract X.Y.Z from tag (strip leading 'v', take up to first '_')
           VERSION=$(echo "$GIT_TAG" | sed 's/^v//' | cut -d'_' -f1)
 
@@ -115,39 +103,27 @@ jobs:
             PREV_NERD=$(python3 scripts/parse_versions.py versions.json packaging.prev_nerd_tag --default '')
           fi
 
-          PREV_JBM="${{ github.event.client_payload.prev_jbm_tag }}"
-          if [ -z "$PREV_JBM" ]; then
-            PREV_JBM=$(python3 scripts/parse_versions.py versions.json packaging.prev_jbm_tag --default '')
-          fi
-
           LXGW_CHANGED="false"
           NERD_CHANGED="false"
-          JBM_CHANGED="false"
           { [ -z "$PREV_LXGW" ] || [ "$LXGW_TAG" != "$PREV_LXGW" ]; } && LXGW_CHANGED="true"
           { [ -z "$PREV_NERD"  ] || [ "$NERD_TAG"  != "$PREV_NERD"  ]; } && NERD_CHANGED="true"
-          { [ -z "$PREV_JBM"   ] || [ "$JBM_TAG"   != "$PREV_JBM"   ]; } && JBM_CHANGED="true"
-          # Fallback: if all still false (shouldn't happen), show all
-          if [ "$LXGW_CHANGED" = "false" ] && [ "$NERD_CHANGED" = "false" ] && [ "$JBM_CHANGED" = "false" ]; then
+          if [ "$LXGW_CHANGED" = "false" ] && [ "$NERD_CHANGED" = "false" ]; then
             LXGW_CHANGED="true"
             NERD_CHANGED="true"
-            JBM_CHANGED="true"
           fi
 
           echo "git_tag=$GIT_TAG"           >> "$GITHUB_OUTPUT"
           echo "version=$VERSION"           >> "$GITHUB_OUTPUT"
           echo "lxgw_tag=$LXGW_TAG"         >> "$GITHUB_OUTPUT"
-          echo "nerd_tag=$NERD_TAG"          >> "$GITHUB_OUTPUT"
-          echo "jbm_tag=$JBM_TAG"            >> "$GITHUB_OUTPUT"
+          echo "nerd_tag=$NERD_TAG"         >> "$GITHUB_OUTPUT"
           echo "lxgw_changed=$LXGW_CHANGED" >> "$GITHUB_OUTPUT"
-          echo "nerd_changed=$NERD_CHANGED"  >> "$GITHUB_OUTPUT"
-          echo "jbm_changed=$JBM_CHANGED"    >> "$GITHUB_OUTPUT"
+          echo "nerd_changed=$NERD_CHANGED" >> "$GITHUB_OUTPUT"
 
           echo "--- Build parameters ---"
           echo "  git_tag      : $GIT_TAG"
           echo "  version      : $VERSION"
           echo "  lxgw_tag     : $LXGW_TAG  (prev: $PREV_LXGW, changed: $LXGW_CHANGED)"
-          echo "  nerd_tag     : $NERD_TAG   (prev: $PREV_NERD,  changed: $NERD_CHANGED)"
-          echo "  jbm_tag      : $JBM_TAG    (prev: $PREV_JBM,   changed: $JBM_CHANGED)"
+          echo "  nerd_tag     : $NERD_TAG  (prev: $PREV_NERD, changed: $NERD_CHANGED)"
 
   # ---------------------------------------------------------------------------
   # Job 2: Download upstream font sources
@@ -192,67 +168,23 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scripts/requirements.txt
 
-      - name: Fetch JetBrains Sans from CDN (non-mono donor, woff2 → TTF)
-        run: |
-          mkdir -p fonts/jetbrains_sans
-          python scripts/fetch_jbsans.py --output-dir fonts/jetbrains_sans
-          echo "JetBrains Sans TTFs:"
-          ls -lh fonts/jetbrains_sans/
-          test -f fonts/jetbrains_sans/JetBrainsSans-Light.ttf
-          test -f fonts/jetbrains_sans/JetBrainsSans-Regular.ttf
-          test -f fonts/jetbrains_sans/JetBrainsSans-Bold.ttf
-
-      - name: Download Nerd Fonts archives (NerdFontsSymbolsOnly + JetBrainsMono)
+      - name: Download Meslo LGSDZ Nerd Fonts archive
         env:
           NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
-          mkdir -p fonts/nerd_symbols fonts/jetbrainsmono
-
-          SYMBOLS_ARCHIVE="NerdFontsSymbolsOnly.tar.xz"
-          SYMBOLS_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${SYMBOLS_ARCHIVE}"
-          echo "Downloading ${SYMBOLS_ARCHIVE} ..."
-          curl -fsSL "$SYMBOLS_URL" -o "/tmp/${SYMBOLS_ARCHIVE}"
-          echo "Extracting NerdFontsSymbolsOnly ..."
-          tar -xJf "/tmp/${SYMBOLS_ARCHIVE}" -C fonts/nerd_symbols/
-          echo "Nerd Fonts Symbols Only files:"
-          ls fonts/nerd_symbols/
-          # Locate the Regular TTF (filename may vary across nerd-fonts releases)
-          SYMBOLS_TTF=$(find fonts/nerd_symbols -maxdepth 1 -name "*Regular*.ttf" | head -1)
-          [ -f "$SYMBOLS_TTF" ] || SYMBOLS_TTF=$(find fonts/nerd_symbols -maxdepth 1 -name "*.ttf" | head -1)
-          [ -f "$SYMBOLS_TTF" ] || { echo "ERROR: No symbols TTF found in fonts/nerd_symbols/"; exit 1; }
-          echo "Using symbols TTF: $SYMBOLS_TTF"
-          echo "SYMBOLS_TTF=$SYMBOLS_TTF" >> "$GITHUB_ENV"
-
-          JBM_ARCHIVE="JetBrainsMono.tar.xz"
-          JBM_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${JBM_ARCHIVE}"
-          echo "Downloading ${JBM_ARCHIVE} ..."
-          curl -fsSL "$JBM_URL" -o "/tmp/${JBM_ARCHIVE}"
-          echo "Extracting JetBrains Mono fonts ..."
-          tar -xJf "/tmp/${JBM_ARCHIVE}" -C fonts/jetbrainsmono/
-          echo "JetBrainsMonoNerdFontMono fonts found:"
-          ls fonts/jetbrainsmono/JetBrainsMonoNerdFontMono*.ttf
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Light.ttf || exit 1
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Regular.ttf || exit 1
-          test -f fonts/jetbrainsmono/JetBrainsMonoNerdFontMono-Bold.ttf || exit 1
-
-      - name: Patch JetBrains Sans with Nerd Fonts symbols (non-mono pre-patch)
-        run: |
-          mkdir -p fonts/jetbrains_sans_patched
-
-          echo "Nerd symbols source: $SYMBOLS_TTF"
-
-          for STYLE in Light Regular Bold; do
-            INPUT="fonts/jetbrains_sans/JetBrainsSans-${STYLE}.ttf"
-            OUTPUT="fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-${STYLE}.ttf"
-            echo "Patching ${STYLE} ..."
-            python scripts/patch.py --input "$INPUT" --symbols "$SYMBOLS_TTF" --output "$OUTPUT"
-          done
-
-          echo "Patched fonts:"
-          ls -lh fonts/jetbrains_sans_patched/
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Light.ttf || exit 1
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf || exit 1
-          test -f fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Bold.ttf || exit 1
+          mkdir -p fonts/meslo
+          ARCHIVE="Meslo.tar.xz"
+          URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE}"
+          echo "Downloading ${ARCHIVE} ..."
+          curl -fsSL "$URL" -o "/tmp/${ARCHIVE}"
+          echo "Extracting Meslo fonts ..."
+          tar -xJf "/tmp/${ARCHIVE}" -C fonts/meslo/
+          echo "Meslo files:"
+          ls -lh fonts/meslo/
+          test -f fonts/meslo/MesloLGSDZNerdFont-Regular.ttf || exit 1
+          test -f fonts/meslo/MesloLGSDZNerdFont-Bold.ttf || exit 1
+          test -f fonts/meslo/MesloLGSDZNerdFontMono-Regular.ttf || exit 1
+          test -f fonts/meslo/MesloLGSDZNerdFontMono-Bold.ttf || exit 1
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v7
@@ -260,12 +192,11 @@ jobs:
           name: font-sources
           path: |
             fonts/wenkai/
-            fonts/jetbrains_sans_patched/
-            fonts/jetbrainsmono/
+            fonts/meslo/
           retention-days: 1
 
   # ---------------------------------------------------------------------------
-  # Job 3: Build merged fonts (6-way matrix, runs in parallel)
+# Job 3: Build merged fonts (4-way matrix, runs in parallel)
   # ---------------------------------------------------------------------------
   build:
     needs: [resolve-params, download-fonts]
@@ -275,28 +206,10 @@ jobs:
       fail-fast: false # Build all styles even if one fails
       matrix:
         include:
-          - style: Light
-            wenkai_file: LXGWWenKaiTC-Light.ttf
-            donor_subdir: jetbrains_sans_patched
-            donor_file: JetBrainsSans-NerdPatched-Light.ttf
-            output_file: ENSFont-Light.ttf
-            is_mono: false
-            family_name: ENS Font
-            ps_family: ENSFont
-
-          - style: Light
-            wenkai_file: LXGWWenKaiMonoTC-Light.ttf
-            donor_subdir: jetbrainsmono
-            donor_file: JetBrainsMonoNerdFontMono-Light.ttf
-            output_file: ENSFontMono-Light.ttf
-            is_mono: true
-            family_name: ENS Font Mono
-            ps_family: ENSFontMono
-
           - style: Regular
             wenkai_file: LXGWWenKaiTC-Regular.ttf
-            donor_subdir: jetbrains_sans_patched
-            donor_file: JetBrainsSans-NerdPatched-Regular.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFont-Regular.ttf
             output_file: ENSFont-Regular.ttf
             is_mono: false
             family_name: ENS Font
@@ -304,8 +217,8 @@ jobs:
 
           - style: Regular
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
-            donor_subdir: jetbrainsmono
-            donor_file: JetBrainsMonoNerdFontMono-Regular.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFontMono-Regular.ttf
             output_file: ENSFontMono-Regular.ttf
             is_mono: true
             family_name: ENS Font Mono
@@ -313,8 +226,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiTC-Medium.ttf
-            donor_subdir: jetbrains_sans_patched
-            donor_file: JetBrainsSans-NerdPatched-Bold.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFont-Bold.ttf
             output_file: ENSFont-Bold.ttf
             is_mono: false
             family_name: ENS Font
@@ -322,8 +235,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
-            donor_subdir: jetbrainsmono
-            donor_file: JetBrainsMonoNerdFontMono-Bold.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFontMono-Bold.ttf
             output_file: ENSFontMono-Bold.ttf
             is_mono: true
             family_name: ENS Font Mono
@@ -505,10 +418,8 @@ jobs:
             --version      "${{ needs.resolve-params.outputs.version }}" \
             --lxgw-tag     "${{ needs.resolve-params.outputs.lxgw_tag }}" \
             --nerd-tag     "${{ needs.resolve-params.outputs.nerd_tag }}" \
-            --jbm-tag      "${{ needs.resolve-params.outputs.jbm_tag }}" \
             --lxgw-changed "${{ needs.resolve-params.outputs.lxgw_changed }}" \
             --nerd-changed "${{ needs.resolve-params.outputs.nerd_changed }}" \
-            --jbm-changed  "${{ needs.resolve-params.outputs.jbm_changed }}" \
             --output       /tmp/release_notes.md
           echo "--- Release notes preview (first 30 lines) ---"
           head -30 /tmp/release_notes.md
@@ -536,8 +447,6 @@ jobs:
           gh release create "${{ needs.resolve-params.outputs.git_tag }}" \
             --title "ENS Font v${{ needs.resolve-params.outputs.version }}" \
             --notes-file /tmp/release_notes.md \
-            dist/ENSFont-Light.ttf \
-            dist/ENSFontMono-Light.ttf \
             dist/ENSFont-Regular.ttf \
             dist/ENSFontMono-Regular.ttf \
             dist/ENSFont-Bold.ttf \

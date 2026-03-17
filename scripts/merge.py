@@ -4,8 +4,8 @@ merge.py - Merges LXGWWenKaiTC(*) + donor font into ENS Font (Elegant Nerd Sino)
 
 Merge strategy:
   Base:   LXGW WenKai TC / WenKai Mono TC  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
-  Donor:  Non-mono: JetBrains Sans + Nerd Fonts (pre-patched by patch.py)
-          Mono:     JetBrainsMono Nerd Font Mono (ASCII, Latin, Box Drawing, PUA icons)
+  Donor:  Non-mono: Meslo LGSDZ Nerd Font
+          Mono:     Meslo LGSDZ Nerd Font Mono
 
 All donor codepoints are transplanted into the base, overwriting any existing WenKai TC
 entry at the same codepoint. WenKai TC serves as the failsafe: only codepoints absent
@@ -14,10 +14,10 @@ from the donor are retained from WenKai TC.
 Usage:
     python scripts/merge.py \
         --wenkai  fonts/wenkai/LXGWWenKaiTC-Regular.ttf \
-        --donor   fonts/jetbrains_sans_patched/JetBrainsSans-NerdPatched-Regular.ttf \
+        --donor   fonts/meslo/MesloLGSDZNerdFont-Regular.ttf \
         --output  dist/ENSFont-Regular.ttf \
         --style   Regular \
-        --version 1.0.0 \
+        --version 3.0.0 \
         --lxgw-version 1.521 \
         --nerd-version 3.4.0
 """
@@ -281,9 +281,8 @@ def set_font_metadata(
     copyright_notice = (
         "ENS Font (Elegant Nerd Sino) is a derivative work.\n"
         "CJK glyphs: LXGW WenKai / WenKai Mono (c) 2021 Xiaocheng Liao, SIL OFL 1.1\n"
-        "Latin/ASCII glyphs: JetBrains Sans (c) JetBrains s.r.o., Apache License 2.0\n"
-        "Mono Latin/ASCII glyphs: JetBrains Mono (c) JetBrains s.r.o., SIL OFL 1.1\n"
-        "PUA icons: Nerd Fonts (c) 2014 Ryan L McIntyre, MIT License\n"
+        "Latin/ASCII glyphs: Meslo LG (c) 2009, 2010, 2013 Andre Berg, Apache License 2.0\n"
+        "Nerd patch and PUA icons: Nerd Fonts (c) 2014 Ryan L McIntyre, MIT License\n"
         f"Compiled font: (c) {datetime.now().year} enstw (https://ens.tw/font), SIL OFL 1.1\n"
         'Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".\n'
         'The names "LXGW", "霞鶩", and "Klee" are NOT used by this derivative.'
@@ -292,7 +291,7 @@ def set_font_metadata(
     license_text = (
         "This Font Software is licensed under the SIL Open Font License, Version 1.1. "
         "This license is available with a FAQ at: https://openfontlicense.org. "
-        "ASCII/Latin glyphs (non-mono) derived from JetBrains Sans are used under the Apache License 2.0."
+        "ASCII/Latin glyphs derived from Meslo LG are used under the Apache License 2.0."
     )
 
     entries = [
@@ -380,7 +379,7 @@ def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
     # fsType = 0: installable embedding (required by OFL)
     os2.fsType = 0
 
-    # Text metrics from MesloLGM for correct rendering hints
+    # Text metrics from the Meslo donor for correct rendering hints
     os2.sxHeight = ref_os2.sxHeight
     os2.sCapHeight = ref_os2.sCapHeight
 
@@ -400,14 +399,14 @@ def assert_donor_is_mono(donor: TTFont, donor_path: str) -> None:
     """
     Assert that the donor font is monospaced (post.isFixedPitch == 1).
     Called before transplant for --mono builds to prevent accidentally wiring
-    a proportional font (e.g. JetBrains Sans) as a mono donor.
+    a proportional font as a mono donor.
     Exits with error if the check fails.
     """
     if donor["post"].isFixedPitch != 1:
         log.error(
             f"Donor font is NOT monospaced (post.isFixedPitch != 1): {donor_path}\n"
             "  A monospaced donor is required for --mono builds.\n"
-            "  Use JetBrainsMonoNerdFontMono-*.ttf, not JetBrainsSans."
+            "  Use a Meslo LGSDZ Nerd Font Mono donor for --mono builds."
         )
         sys.exit(1)
     log.info(f"Donor mono check: PASS (post.isFixedPitch=1): {donor_path}")
@@ -575,7 +574,7 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     - OS/2.panose.bProportion: 9 for mono, 0 (any) or 2 (proportional)
     - OS/2.panose.bSerifStyle: 0 (Any) — inherited from WenKai base as 2 (Cove),
       which incorrectly classifies this sans-serif font as serifed. Reset to 0 to
-      match JetBrains Mono and avoid wrong font-substitution matches.
+      match the donor family and avoid wrong font-substitution matches.
     - OS/2.xAvgCharWidth: Set to width of 'h' (approximate)
     - OS/2.achVendID: Set to 'ENSF' (ENS Font)
     """
@@ -586,7 +585,7 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     os2.achVendID = "ENSF"
 
     # bSerifStyle=2 (Cove) is inherited from WenKai and is wrong for a sans-serif font.
-    # Set to 0 (Any) to match JetBrains Mono and avoid incorrect serif font substitution.
+    # Set to 0 (Any) to avoid incorrect serif font substitution.
     os2.panose.bSerifStyle = 0
 
     if is_mono:
@@ -663,8 +662,8 @@ def merge_fonts(
     Main merge function.
 
     Base:  LXGW WenKai / WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
-    Donor (non-mono): JetBrains Sans + Nerd Fonts (pre-patched by patch.py)
-    Donor (mono):     JetBrainsMono Nerd Font Mono - ASCII, Latin, Box Drawing, PUA icons
+    Donor (non-mono): Meslo LGSDZ Nerd Font
+    Donor (mono):     Meslo LGSDZ Nerd Font Mono
 
     Result is renamed to ENS Font for OFL compliance.
     """
@@ -689,7 +688,7 @@ def merge_fonts(
         if a_glyph and a_glyph in donor["hmtx"].metrics:
             cell_width = donor["hmtx"].metrics[a_glyph][0]
         else:
-            cell_width = 600  # safe fallback for JBM Nerd Mono
+            cell_width = 600  # safe fallback for Meslo Nerd Mono
         log.info(f"  Donor cell width: {cell_width} units (from 'A')")
 
     # Step 1: Ensure base has both BMP and full-Unicode cmap subtables
@@ -708,7 +707,7 @@ def merge_fonts(
     log.info(f"  -> {donor_count} glyphs transplanted")
 
     # Step 2b: For mono builds, normalize any sub-cell advance widths to cell_width.
-    # WenKai Mono TC uses a 500/1000 grid; codepoints absent from JBM Nerd leak
+    # WenKai Mono TC uses a 500/1000 grid; codepoints absent from the donor leak
     # through at 500 wide. Bump all 0 < advance < cell_width to cell_width.
     if is_mono:
         log.info("Step 2b: Normalizing half-width advances to cell width...")
@@ -767,7 +766,7 @@ def main():
         description="Merge LXGWWenKaiTC(*) + donor font into ENS Font"
     )
     parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKaiTC*.ttf")
-    parser.add_argument("--donor", required=True, help="Path to donor TTF (JetBrains Sans NerdPatched or JetBrainsMono Nerd Font Mono)")
+    parser.add_argument("--donor", required=True, help="Path to donor TTF (Meslo LGSDZ Nerd Font or Meslo LGSDZ Nerd Font Mono)")
     parser.add_argument("--output", required=True, help="Output .ttf path")
     parser.add_argument(
         "--family-name",

@@ -10,7 +10,7 @@ Basic Font Information
 
 ENS Font is a merged terminal font combining:
   - LXGW WenKai Mono (CJK base layer, SIL OFL 1.1)
-  - MesloLGM Nerd Font (ASCII/Latin, Apache 2.0; Nerd Fonts PUA icons, MIT)
+  - Meslo LGSDZ Nerd Font (ASCII/Latin, Apache 2.0; Nerd Fonts PUA icons, MIT)
 
 The merge is automated via GitHub Actions and tracks upstream releases.
 
@@ -20,11 +20,11 @@ Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".
 
 Change Log
 
-2026 (v1.0.0) - Initial release
+2026 (v3.0.0) - Meslo LGSDZ donor switch
   - Base: LXGW WenKai Mono v1.521
-  - ASCII/PUA: MesloLGM Nerd Font v3.4.0
-  - Three-layer collision resolution: MesloLGM > Nerd Fonts PUA > LXGW WenKai
-  - OS/2 metrics aligned to MesloLGM for terminal compatibility
+  - ASCII/PUA: Meslo LGSDZ Nerd Font v3.4.0
+  - Donor precedence: Meslo LGSDZ > LXGW WenKai
+  - OS/2 metrics aligned to Meslo LGSDZ for terminal compatibility
 
 ---
 
