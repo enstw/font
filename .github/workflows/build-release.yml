@@ -45,6 +45,11 @@ on:
       nerd_tag:
         description: "Nerd Fonts release tag (e.g. v3.4.0)"
         required: false
+      debug_vertical:
+        description: "Log vertical metric diagnostics for selected donor/base/merged glyphs"
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: write
 
@@ -64,6 +69,7 @@ jobs:
       nerd_tag: ${{ steps.params.outputs.nerd_tag }}
       lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
       nerd_changed: ${{ steps.params.outputs.nerd_changed }}
+      debug_vertical: ${{ steps.params.outputs.debug_vertical }}
 
     steps:
       - name: Checkout repository
@@ -76,6 +82,7 @@ jobs:
           GIT_TAG="${{ github.event.client_payload.git_tag || github.event.inputs.git_tag }}"
           LXGW_TAG="${{ github.event.client_payload.lxgw_tag || github.event.inputs.lxgw_tag }}"
           NERD_TAG="${{ github.event.client_payload.nerd_tag || github.event.inputs.nerd_tag }}"
+          DEBUG_VERTICAL="${{ github.event.client_payload.debug_vertical || github.event.inputs.debug_vertical || 'false' }}"
           # Fallback: read from versions.json
           if [ -z "$GIT_TAG" ]; then
             GIT_TAG=$(python3 scripts/parse_versions.py versions.json packaging.git_tag --required)
@@ -118,12 +125,14 @@ jobs:
           echo "nerd_tag=$NERD_TAG"         >> "$GITHUB_OUTPUT"
           echo "lxgw_changed=$LXGW_CHANGED" >> "$GITHUB_OUTPUT"
           echo "nerd_changed=$NERD_CHANGED" >> "$GITHUB_OUTPUT"
+          echo "debug_vertical=$DEBUG_VERTICAL" >> "$GITHUB_OUTPUT"
 
           echo "--- Build parameters ---"
           echo "  git_tag      : $GIT_TAG"
           echo "  version      : $VERSION"
           echo "  lxgw_tag     : $LXGW_TAG  (prev: $PREV_LXGW, changed: $LXGW_CHANGED)"
           echo "  nerd_tag     : $NERD_TAG  (prev: $PREV_NERD, changed: $NERD_CHANGED)"
+          echo "  debug_vertical: $DEBUG_VERTICAL"
 
   # ---------------------------------------------------------------------------
   # Job 2: Download upstream font sources
@@ -267,11 +276,16 @@ jobs:
           VERSION: ${{ needs.resolve-params.outputs.version }}
           LXGW_TAG: ${{ needs.resolve-params.outputs.lxgw_tag }}
           NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
+          DEBUG_VERTICAL: ${{ needs.resolve-params.outputs.debug_vertical }}
         run: |
           mkdir -p dist
 
           LXGW_VER="${LXGW_TAG#v}"
           NERD_VER="${NERD_TAG#v}"
+          DEBUG_ARGS=""
+          if [ "$DEBUG_VERTICAL" = "true" ]; then
+            DEBUG_ARGS="--debug-vertical"
+          fi
 
           python scripts/merge.py \
             --wenkai  "fonts/wenkai/${{ matrix.wenkai_file }}" \
@@ -283,6 +297,7 @@ jobs:
             --version "$VERSION" \
             --lxgw-version "$LXGW_VER" \
             --nerd-version "$NERD_VER" \
+            $DEBUG_ARGS \
             $(if [ "${{ matrix.is_mono }}" = "true" ]; then echo "--mono"; fi)
 
       - name: Verify OFL compliance

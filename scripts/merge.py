@@ -37,6 +37,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 MONO_CELL_WIDTH = 600
+DEFAULT_VERTICAL_DEBUG = ["H", "x", "█", "─", "│", "中", "你"]
 
 
 def get_best_cmap(font: TTFont) -> dict:
@@ -94,6 +95,110 @@ def ensure_cmap_subtables(font: TTFont) -> None:
         sub.language = 0
         sub.cmap = dict(best)
         cmap_table.tables.append(sub)
+
+
+def parse_debug_codepoints(values: list[str]) -> list[int]:
+    """
+    Parse vertical-debug glyph selectors from characters or U+XXXX values.
+    """
+    codepoints = []
+    for value in values:
+        if value.startswith(("U+", "u+")):
+            codepoints.append(int(value[2:], 16))
+        elif value.startswith(("0x", "0X")):
+            codepoints.append(int(value, 16))
+        elif len(value) == 1:
+            codepoints.append(ord(value))
+        else:
+            raise ValueError(
+                f"Unsupported debug glyph selector '{value}'. Use a literal character or U+XXXX."
+            )
+    return codepoints
+
+
+def get_glyph_bounds(font: TTFont, glyph_name: str) -> tuple[int | None, int | None]:
+    """
+    Return (yMin, yMax) for a glyph if bounds can be computed.
+    """
+    glyf = font["glyf"]
+    glyph = glyf[glyph_name]
+    try:
+        glyph.recalcBounds(glyf)
+    except Exception:
+        return (None, None)
+    return (getattr(glyph, "yMin", None), getattr(glyph, "yMax", None))
+
+
+def log_vertical_metrics(font: TTFont, label: str) -> None:
+    """
+    Log the line-height metrics that affect horizontal layout.
+    """
+    os2 = font["OS/2"]
+    hhea = font["hhea"]
+    log.info(
+        "%s metrics: UPM=%s hhea=(%s,%s,%s) typo=(%s,%s,%s) win=(%s,%s)",
+        label,
+        font["head"].unitsPerEm,
+        hhea.ascent,
+        hhea.descent,
+        hhea.lineGap,
+        os2.sTypoAscender,
+        os2.sTypoDescender,
+        os2.sTypoLineGap,
+        os2.usWinAscent,
+        os2.usWinDescent,
+    )
+
+
+def debug_vertical_alignment(
+    base_before: TTFont,
+    donor: TTFont,
+    merged: TTFont,
+    codepoints: list[int],
+) -> None:
+    """
+    Compare selected glyph bounds across base, donor, and merged fonts.
+    """
+    base_cmap = get_best_cmap(base_before)
+    donor_cmap = get_best_cmap(donor)
+    merged_cmap = get_best_cmap(merged)
+
+    log.info("Vertical alignment diagnostic for selected glyphs:")
+    log_vertical_metrics(base_before, "  Base")
+    log_vertical_metrics(donor, "  Donor")
+    log_vertical_metrics(merged, "  Merged")
+
+    for cp in codepoints:
+        char = chr(cp)
+        tag = f"U+{cp:04X} {repr(char)}"
+
+        base_name = base_cmap.get(cp)
+        donor_name = donor_cmap.get(cp)
+        merged_name = merged_cmap.get(cp)
+
+        if base_name:
+            base_bounds = get_glyph_bounds(base_before, base_name)
+        else:
+            base_bounds = (None, None)
+        if donor_name:
+            donor_bounds = get_glyph_bounds(donor, donor_name)
+        else:
+            donor_bounds = (None, None)
+        if merged_name:
+            merged_bounds = get_glyph_bounds(merged, merged_name)
+        else:
+            merged_bounds = (None, None)
+
+        log.info(
+            "  %s: base=%s %s donor=%s %s merged=%s %s",
+            tag,
+            base_name or "-",
+            base_bounds,
+            donor_name or "-",
+            donor_bounds,
+            merged_name or "-",
+            merged_bounds,
+        )
 
 
 def copy_glyph(
@@ -677,6 +782,7 @@ def merge_fonts(
     lxgw_ver: str,
     nerd_ver: str,
     is_mono: bool = False,
+    debug_vertical_cps: list[int] | None = None,
 ) -> None:
     """
     Main merge function.
@@ -690,6 +796,7 @@ def merge_fonts(
     log.info(f"=== ENS Font Build: {style} ===")
     log.info(f"Loading LXGW WenKai (base): {wenkai_path}")
     base = TTFont(wenkai_path)
+    base_before = TTFont(wenkai_path)
 
     log.info(f"Loading donor font: {donor_path}")
     donor = TTFont(donor_path)
@@ -774,10 +881,14 @@ def merge_fonts(
         log.info("Step 9: Rebuilding vmtx for full glyph coverage...")
         rebuild_vmtx(base)
 
-    # Step 10: Save
+    if debug_vertical_cps:
+        log.info("Step 10: Logging vertical alignment diagnostics...")
+        debug_vertical_alignment(base_before, donor, base, debug_vertical_cps)
+
+    # Step 11: Save
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    log.info(f"Step 9: Saving to {output_path} ...")
+    log.info(f"Step 11: Saving to {output_path} ...")
     base.save(str(output))
 
     size_kb = output.stat().st_size // 1024
@@ -817,7 +928,22 @@ def main():
         "--nerd-version", required=True, help="Nerd Fonts upstream version"
     )
     parser.add_argument("--mono", action="store_true", help="Assert that the output should be monospaced")
+    parser.add_argument(
+        "--debug-vertical",
+        nargs="*",
+        metavar="GLYPH",
+        help=(
+            "Log base/donor/merged glyph bounds for selected codepoints. "
+            "Accepts literal characters or U+XXXX values. Defaults to a representative set "
+            "if provided without arguments."
+        ),
+    )
     args = parser.parse_args()
+
+    debug_vertical_cps = None
+    if args.debug_vertical is not None:
+        selectors = args.debug_vertical or DEFAULT_VERTICAL_DEBUG
+        debug_vertical_cps = parse_debug_codepoints(selectors)
 
     merge_fonts(
         wenkai_path=args.wenkai,
@@ -830,6 +956,7 @@ def main():
         lxgw_ver=args.lxgw_version,
         nerd_ver=args.nerd_version,
         is_mono=args.mono,
+        debug_vertical_cps=debug_vertical_cps,
     )
 
 
