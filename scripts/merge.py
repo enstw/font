@@ -36,6 +36,8 @@ from fontTools.ttLib.tables import _n_a_m_e
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
+MONO_CELL_WIDTH = 600
+
 
 def get_best_cmap(font: TTFont) -> dict:
     """
@@ -678,18 +680,21 @@ def merge_fonts(
     log.info("Step 0: Checking UPM compatibility...")
     check_upm_compatibility(base, donor)
 
-    # Step 0b: For mono builds, assert donor is monospaced and read its cell width.
-    # Cell width is read before transplant so donor hmtx is still unmodified.
+    # Step 0b: For mono builds, assert donor is monospaced and pin output metrics
+    # to the canonical 600/1200 grid. The donor width is logged for debugging,
+    # but the final merged font should not drift with donor scaling artifacts.
     cell_width = None
     if is_mono:
         assert_donor_is_mono(donor, donor_path)
+        cell_width = MONO_CELL_WIDTH
         donor_cmap = get_best_cmap(donor)
         a_glyph = donor_cmap.get(ord('A'))
         if a_glyph and a_glyph in donor["hmtx"].metrics:
-            cell_width = donor["hmtx"].metrics[a_glyph][0]
+            donor_cell_width = donor["hmtx"].metrics[a_glyph][0]
+            log.info(f"  Donor cell width: {donor_cell_width} units (from 'A')")
         else:
-            cell_width = 600  # safe fallback for Meslo Nerd Mono
-        log.info(f"  Donor cell width: {cell_width} units (from 'A')")
+            log.warning("  Donor cell width unavailable; using canonical mono width")
+        log.info(f"  Canonical mono cell width: {cell_width} units")
 
     # Step 1: Ensure base has both BMP and full-Unicode cmap subtables
     log.info("Step 1: Ensuring cmap subtable coverage...")

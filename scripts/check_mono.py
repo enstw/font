@@ -101,7 +101,7 @@ def check_mono(font_path: str, cell_width: int) -> bool:
             if len(samples) > 5:
                 sample_str += f" ... +{len(samples) - 5} more"
             violations.append(
-                f"Width {adv} (expected {cell_width}): "
+                f"Width {adv} (expected 0 or a positive multiple of {cell_width}): "
                 f"{len(samples)} glyphs — e.g. {sample_str}"
             )
 
