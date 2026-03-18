@@ -1,16 +1,16 @@
 {
   "packaging": {
-    "version": "3.0.3",
-    "last_built": "2026-03-17T10:21:13.073183+00:00",
-    "git_tag": "v3.0.3_lxgw1.521_meslo-lgsdz_nerd3.4.0",
+    "version": "3.1.0",
+    "last_built": "2026-03-18T06:32:24.938248+00:00",
+    "git_tag": "v3.1.0_lxgw1.522_meslo-lgsdz_nerd3.4.0",
     "prev_lxgw_tag": "v1.521",
     "prev_nerd_tag": "v3.4.0"
   },
   "upstream": {
     "lxgw_wenkai": {
       "repo": "lxgw/LxgwWenKaiTC",
-      "tag": "v1.521",
-      "release_date": "2025-10-10T13:59:06Z"
+      "tag": "v1.522",
+      "release_date": "2026-03-17T15:21:03Z"
     },
     "nerd_fonts": {
       "repo": "ryanoasis/nerd-fonts",
