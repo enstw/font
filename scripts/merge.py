@@ -527,6 +527,23 @@ def assert_donor_is_mono(donor: TTFont, donor_path: str) -> None:
     log.info(f"Donor mono check: PASS (post.isFixedPitch=1): {donor_path}")
 
 
+def _shift_glyph_x(font: TTFont, gname: str, dx: int) -> None:
+    """Translate all x-coordinates of a glyf glyph by dx units."""
+    glyf_table = font["glyf"]
+    g = glyf_table[gname]
+    if g.numberOfContours == 0:
+        return
+    if g.numberOfContours > 0:
+        # Simple glyph: shift all coordinate x values
+        for i, (x, y) in enumerate(g.coordinates):
+            g.coordinates[i] = (x + dx, y)
+    elif g.numberOfContours == -1:
+        # Composite glyph: shift component offsets
+        for comp in g.components:
+            comp.x += dx
+    g.recalcBounds(glyf_table)
+
+
 def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     """
     After transplant, enforce a cell_width-aligned advance grid.
@@ -540,6 +557,9 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
       3. Over-full-cell (adv > 2*cell_width):            round up to nearest multiple
                                                          of 2*cell_width (2000→2400, 3000→3600)
     Combining marks (advance=0) and correctly-sized glyphs are untouched.
+
+    When advance width increases, glyph outlines are shifted right by half the
+    difference so spacing is distributed evenly on both sides.
     """
     import math
     hmtx = font["hmtx"]
@@ -550,17 +570,21 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
     over_corrected = 0
     for gname, (adv, lsb) in list(hmtx.metrics.items()):
         if 0 < adv < cell_width:
-            new_lsb = lsb + (cell_width - adv) // 2
+            dx = (cell_width - adv) // 2
+            new_lsb = lsb + dx
             log.debug(f"  normalize half: {gname} {adv} -> {cell_width} (lsb {lsb} -> {new_lsb})")
+            _shift_glyph_x(font, gname, dx)
             hmtx.metrics[gname] = (cell_width, new_lsb)
             half_corrected += 1
         elif cell_width < adv < full_width:
             target_width = cell_width if adv < half_to_full_midpoint else full_width
-            new_lsb = lsb + (target_width - adv) // 2
+            dx = (target_width - adv) // 2
+            new_lsb = lsb + dx
             log.debug(
                 f"  normalize mid: {gname} {adv} -> {target_width} "
                 f"(lsb {lsb} -> {new_lsb})"
             )
+            _shift_glyph_x(font, gname, dx)
             hmtx.metrics[gname] = (target_width, new_lsb)
             if target_width == cell_width:
                 half_corrected += 1
@@ -568,8 +592,10 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
                 full_corrected += 1
         elif adv > full_width:
             rounded = math.ceil(adv / full_width) * full_width
-            new_lsb = lsb + (rounded - adv) // 2
+            dx = (rounded - adv) // 2
+            new_lsb = lsb + dx
             log.debug(f"  normalize over: {gname} {adv} -> {rounded} (lsb {lsb} -> {new_lsb})")
+            _shift_glyph_x(font, gname, dx)
             hmtx.metrics[gname] = (rounded, new_lsb)
             over_corrected += 1
     log.info(
