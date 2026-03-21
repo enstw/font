@@ -87,6 +87,12 @@ python scripts/merge.py \
   --version 3.1.3
 ```
 
+## 🤝 Contributors / 貢獻者
+
+- [@enstw](https://github.com/enstw) — Project Maintainer
+- [Claude](https://github.com/claude) — AI Development Assistant
+- [Gemini](https://gemini.google.com) — AI Development Assistant
+
 ## 📜 License / 授權
 
 ENS Font is released under the **SIL Open Font License 1.1**.

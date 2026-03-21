@@ -31,6 +31,14 @@ Change Log
 
 Acknowledgements
 
+- @enstw: Project Maintainer
+
+- Claude (AI): Development Assistant
+  https://github.com/claude
+
+- Gemini (AI): Development Assistant
+  https://gemini.google.com
+
 - Xiaocheng Liao (lxgw): LXGW WenKai Mono TC
   https://github.com/lxgw/LxgwWenKaiTC
 
