@@ -355,7 +355,12 @@ jobs:
 
       - name: Verify monospace conformance
         if: ${{ matrix.is_mono == true || matrix.is_mono_prop == true }}
-        run: python scripts/check_mono.py dist/${{ matrix.output_file }} --cell-width 600
+        run: |
+          PROP_ARG=""
+          if [ "${{ matrix.is_mono_prop }}" = "true" ]; then
+            PROP_ARG="--mono-prop"
+          fi
+          python scripts/check_mono.py "dist/${{ matrix.output_file }}" --cell-width 600 $PROP_ARG
 
       - name: Upload built font
         uses: actions/upload-artifact@v7

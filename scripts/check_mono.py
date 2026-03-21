@@ -40,13 +40,16 @@ def get_best_cmap(font: TTFont) -> dict:
     raise ValueError("Font has no usable Unicode cmap subtable")
 
 
-def check_mono(font_path: str, cell_width: int) -> bool:
+def check_mono(font_path: str, cell_width: int, is_mono_prop: bool = False) -> bool:
     """
     Check monospace conformance of a font file.
 
     Violation: any glyph with advance in (0, cell_width) — i.e. non-zero but
     narrower than the half-cell. Widths of 0 (combining marks) and >= cell_width
     (full-width CJK, double-wide Nerd icons, em-dashes) are all acceptable.
+
+    If is_mono_prop is True, we skip checking Nerd Font icons in PUA to allow
+    them to be proportional.
 
     Returns True if all checks pass, False if any violations found.
     """
@@ -84,6 +87,16 @@ def check_mono(font_path: str, cell_width: int) -> bool:
     for gname, (adv, _lsb) in hmtx.metrics.items():
         if adv == 0 or adv % cell_width == 0:
             continue
+
+        # If in mono-prop mode, skip all glyphs that are part of the PUA range
+        # or look like they were transplanted from the donor font.
+        if is_mono_prop:
+            cps = glyph_to_cps.get(gname, [])
+            if cps and any((0xE000 <= cp <= 0xF8FF) or (0xF0000 <= cp <= 0xFFFFF) for cp in cps):
+                continue
+            if gname.startswith(("don_", "_ens_")):
+                continue
+
         cps = glyph_to_cps.get(gname, [])
         if cps:
             for cp in cps[:3]:
@@ -127,9 +140,14 @@ def main():
         default=600,
         help="Expected half-width cell width in font units (default: 600)",
     )
+    parser.add_argument(
+        "--mono-prop",
+        action="store_true",
+        help="Skip PUA range checks for proportional Nerd Font icons",
+    )
     args = parser.parse_args()
 
-    ok = check_mono(args.font, args.cell_width)
+    ok = check_mono(args.font, args.cell_width, is_mono_prop=args.mono_prop)
     sys.exit(0 if ok else 1)
 
 
