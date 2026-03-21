@@ -109,7 +109,7 @@ def build_notes(
 原始保留名稱 "LXGW"、"霞鶩"、"Klee" 均**未使用**於本衍生字體。
 
 ### Contributors
-@enstw · [Claude](https://github.com/claude)
+@enstw · [Claude](https://github.com/claude) · [Gemini](https://gemini.google.com)
 
 ---
 
