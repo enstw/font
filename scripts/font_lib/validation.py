@@ -33,10 +33,9 @@ def validate_monospace_integrity(
     """
     Verify half-width glyphs have the expected uniform advance width.
 
-    For mono builds: checks ASCII + Latin Extended-A/B + Greek & Coptic + Cyrillic
-    + Greek Extended + Nerd PUA BMP. Emits log.error + sys.exit(1) on any violation.
-
-    For mono-prop builds: checks ASCII + Latin Extended-A/B, but skips Nerd PUA.
+    For mono and mono-prop builds: checks ASCII + Latin Extended-A/B + Greek & Coptic + Cyrillic
+    + Greek Extended + Nerd PUA (BMP and Plane 15). Emits log.error + sys.exit(1) on any violation.
+    Even for mono-prop, PUA icons are expected to be multiples of the cell width.
 
     For non-mono builds: checks ASCII only, issues a warning (not error).
     """
@@ -74,17 +73,15 @@ def validate_monospace_integrity(
         log.info("Monospace integrity OK (ASCII-only check for non-mono build)")
         return
 
-    # Extended check for mono builds
+    # Extended check for mono and mono-prop builds
     extended_ranges = [
         (0x0100, 0x024F, "Latin Extended-A/B"),
         (0x0370, 0x03FF, "Greek & Coptic"),
         (0x0400, 0x04FF, "Cyrillic"),
         (0x1F00, 0x1FFF, "Greek Extended"),
+        (0xE000, 0xF8FF, "Nerd PUA BMP"),
+        (0xF0000, 0xFFFFF, "Nerd PUA Plane 15"),
     ]
-
-    # Only check Nerd PUA BMP if it's a strict mono build (not mono-prop)
-    if is_mono and not is_mono_prop:
-        extended_ranges.append((0xE000, 0xF8FF, "Nerd PUA BMP"))
 
     violations = []
     for start, end, block_name in extended_ranges:
@@ -98,8 +95,8 @@ def validate_monospace_integrity(
 
     if violations:
         log.error(
-            f"MONOSPACE INTEGRITY FAIL: {len(violations)} glyphs with wrong advance "
-            f"width (expected {cell_width}):"
+            f"MONOSPACE INTEGRITY FAIL: {len(violations)} glyphs with non-multiple advance "
+            f"width (expected multiple of {cell_width}):"
         )
         for cp, adv, block_name in violations[:10]:
             log.error(f"  U+{cp:04X} in {block_name}: advance={adv}")
@@ -107,5 +104,4 @@ def validate_monospace_integrity(
             log.error(f"  ... and {len(violations) - 10} more")
         sys.exit(1)
 
-    checked_scope = "ASCII + Latin ranges" if is_mono_prop else "ASCII + extended ranges"
-    log.info(f"Monospace integrity OK: all checked glyphs at {cell_width} units ({checked_scope})")
+    log.info(f"Monospace integrity OK: all checked glyphs are multiples of {cell_width} units (extended ranges)")

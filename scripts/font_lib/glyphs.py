@@ -136,12 +136,27 @@ def normalize_half_widths(font: TTFont, cell_width: int, is_mono_prop: bool = Fa
         if adv == 0:
             continue
 
-        # Skip normalization for Nerd Font icons if in mono-prop mode
+        # For Nerd Font icons in mono-prop mode, snap to the nearest multiple of cell_width
+        # instead of the standard half/full width rounding, allowing them to be >2 cells wide
+        # but maintaining the exact multiples required by fontconfig for "Dual" spacing.
+        is_pua_icon = False
         if is_mono_prop and gname in rev_cmap:
             cp = rev_cmap[gname]
             if (0xE000 <= cp <= 0xF8FF) or (0xF0000 <= cp <= 0xFFFFF):
-                skipped_prop += 1
-                continue
+                is_pua_icon = True
+
+        if is_pua_icon:
+            # Snap to nearest multiple of cell_width (>= 1)
+            multiple = max(1, round(adv / cell_width))
+            target_width = multiple * cell_width
+            if adv != target_width:
+                dx = (target_width - adv) // 2
+                new_lsb = lsb + dx
+                log.debug(f"  normalize PUA icon: {gname} {adv} -> {target_width} (lsb {lsb} -> {new_lsb})")
+                _shift_glyph_x(font, gname, dx)
+                hmtx.metrics[gname] = (target_width, new_lsb)
+                skipped_prop += 1 # We use skipped_prop to count PUA icons processed for logging
+            continue
 
         if 0 < adv < cell_width:
             dx = (cell_width - adv) // 2
@@ -179,7 +194,7 @@ def normalize_half_widths(font: TTFont, cell_width: int, is_mono_prop: bool = Fa
         f"{over_corrected} glyphs rounded to cell-aligned multiple"
     )
     if skipped_prop > 0:
-        msg += f" (skipped {skipped_prop} Nerd icons for mono-prop)"
+        msg += f" (snapped {skipped_prop} Nerd icons to grid multiples for mono-prop)"
     log.info(msg)
 
 

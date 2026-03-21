@@ -111,6 +111,7 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     - OS/2.panose.bSerifStyle: 0 (Any) — inherited from WenKai base as 2 (Cove),
       which incorrectly classifies this sans-serif font as serifed. Reset to 0 to
       match the donor family and avoid wrong font-substitution matches.
+    - OS/2.fsSelection: bit 10 (MONOSPACE) set for mono, cleared for proportional.
     - OS/2.xAvgCharWidth: Set to width of 'h' (approximate)
     - OS/2.achVendID: Set to 'ENSF' (ENS Font)
     """
@@ -125,11 +126,13 @@ def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
     os2.panose.bSerifStyle = 0
 
     if is_mono:
-        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9)")
+        log.info("Setting monospaced flags (isFixedPitch=1, Panose=9, fsSelection bit 10)")
         post.isFixedPitch = 1
         os2.panose.bProportion = 9
+        os2.fsSelection |= (1 << 10)  # Set bit 10 (MONOSPACE)
     else:
-        log.info("Setting proportional flags (isFixedPitch=0, Panose=2)")
+        log.info("Setting proportional flags (isFixedPitch=0, Panose=2, clear fsSelection bit 10)")
         post.isFixedPitch = 0
         if os2.panose.bProportion == 9:
             os2.panose.bProportion = 2
+        os2.fsSelection &= ~(1 << 10)  # Clear bit 10 (MONOSPACE)
