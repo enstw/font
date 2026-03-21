@@ -14,13 +14,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
-from merge import (
-    check_upm_compatibility,
-    ensure_cmap_subtables,
-    fix_glyph_order,
-    rebuild_vmtx,
-    transplant_glyphs,
-)
+from font_lib.cmap import ensure_cmap_subtables
+from font_lib.metrics import check_upm_compatibility, rebuild_vmtx
+from font_lib.glyphs import transplant_glyphs
+from font_lib.utils import fix_glyph_order
 
 from fontTools.ttLib import TTFont
 
