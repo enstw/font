@@ -904,13 +904,15 @@ def merge_fonts(
     log.info("Checking UPM compatibility...")
     check_upm_compatibility(base, donor)
 
-    # For mono builds, assert donor is monospaced and pin output metrics
-    # to the canonical 600/1200 grid. The donor width is logged for debugging,
-    # but the final merged font should not drift with donor scaling artifacts.
-    cell_width = None
+    # Pin output metrics to the canonical 600/1200 grid for both mono and non-mono
+    # builds. While non-mono fonts may have proportional glyphs in general, ENS
+    # Font's core donor (Meslo) and base (WenKai) are largely monospaced, and
+    # centering glyphs within a cell-aligned grid fixes alignment issues in
+    # terminal apps (especially macOS Terminal.app).
+    cell_width = MONO_CELL_WIDTH
+
     if is_mono:
         assert_donor_is_mono(donor, donor_path)
-        cell_width = MONO_CELL_WIDTH
         donor_cmap = get_best_cmap(donor)
         a_glyph = donor_cmap.get(ord('A'))
         if a_glyph and a_glyph in donor["hmtx"].metrics:
@@ -935,12 +937,12 @@ def merge_fonts(
     )
     log.info(f"  -> {donor_count} glyphs transplanted")
 
-    # For mono builds, normalize any sub-cell advance widths to cell_width.
-    # WenKai Mono TC uses a 500/1000 grid; codepoints absent from the donor leak
-    # through at 500 wide. Bump all 0 < advance < cell_width to cell_width.
-    if is_mono:
-        log.info("Normalizing half-width advances to cell width...")
-        normalize_half_widths(base, cell_width)
+    # Normalize advance widths to the canonical cell grid.
+    # WenKai uses a 500/1000 grid; codepoints absent from the donor leak
+    # through at 500/1000 wide. Bump/snap all advances to the 600/1200 grid
+    # and center the glyphs within their new cells.
+    log.info("Normalizing half-width advances to cell width...")
+    normalize_half_widths(base, cell_width)
 
     # Rebuild glyph order for internal consistency
     log.info("Rebuilding glyph order...")
