@@ -17,14 +17,15 @@ ENS Font 以 **LXGW WenKai TC / LXGW WenKai Mono TC** 為 CJK 基底，並改用
 
 ## 產物
 
-| 產物 | CJK 基底 | Donor 來源 |
-|------|---------|------------|
-| ENS Font | LXGW WenKai TC | Meslo LGSDZ Nerd Font |
-| ENS Font Mono | LXGW WenKai Mono TC | Meslo LGSDZ Nerd Font Mono |
+| 產物 | CJK 基底 | Donor 來源 | 說明 |
+|------|---------|------------|------|
+| ENS Font | LXGW WenKai TC | Meslo LGSDZ Nerd Font | 全比例混合字體 |
+| ENS Font Mono | LXGW WenKai Mono TC | Meslo LGSDZ Nerd Font Mono | 嚴格等寬字體（1-cell 圖標） |
+| ENS Font Mono Prop | LXGW WenKai Mono TC | Meslo LGSDZ Nerd Font | 混合等寬（大圖標，相容 Ubuntu Terminal） |
 
 ## 字重與樣式說明
 
-Meslo LGSDZ donor 目前在本專案只使用 **Regular / Bold** 兩個樣式，因此 ENS Font 也只發佈這四個檔案：
+Meslo LGSDZ donor 目前在本專案只使用 **Regular / Bold** 兩個樣式，因此 ENS Font 也只發佈以下檔案：
 
 | 檔案 | 字重 |
 |------|------|
@@ -32,6 +33,8 @@ Meslo LGSDZ donor 目前在本專案只使用 **Regular / Bold** 兩個樣式，
 | `ENSFont-Bold.ttf` | Bold |
 | `ENSFontMono-Regular.ttf` | Regular Mono |
 | `ENSFontMono-Bold.ttf` | Bold Mono |
+| `ENSFontMonoProp-Regular.ttf` | Regular Mono Prop |
+| `ENSFontMonoProp-Bold.ttf` | Bold Mono Prop |
 
 本專案不提供 Italic，也不再輸出 Light。若需要斜體效果，請在編輯器或終端機使用 faux italic。
 

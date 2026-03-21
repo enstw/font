@@ -73,23 +73,30 @@ def build_notes(
 | 來源 | 版本 | 用途 |
 |------|------|------|
 | LXGW WenKai TC / LXGW WenKai Mono TC | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
-| Meslo LGSDZ Nerd Font | [{nerd_tag}]({nerd_url}) | ENS Font ASCII / Latin / PUA donor |
+| Meslo LGSDZ Nerd Font | [{nerd_tag}]({nerd_url}) | ENS Font / ENS Font Mono Prop donor |
 | Meslo LGSDZ Nerd Font Mono | [{nerd_tag}]({nerd_url}) | ENS Font Mono donor |
 
 ### 字元優先權
 1. **Meslo LGSDZ Nerd Font / Meslo LGSDZ Nerd Font Mono** — donor 字型涵蓋的所有字元，一律優先覆蓋 WenKai
 2. **LXGW WenKai TC** — donor 沒有的字元，主要為 CJK、假名、全形標點
 
-> 對應規則：`ENS Font = LXGW WenKai TC + Meslo LGSDZ Nerd Font`，`ENS Font Mono = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font Mono`。
+### 變體說明
+- **ENS Font**：全比例字體，適合一般閱讀與編輯器。
+- **ENS Font Mono**：嚴格等寬字體，圖標縮小至單格寬度，相容性最高。
+- **ENS Font Mono Prop**：**混合等寬字體**，針對 Ubuntu Terminal 等環境優化。中英文保持等寬，但允許 Nerd Font 圖標以原始比例顯示（較大且清晰）。
+
+> 對應規則：`ENS Font = LXGW WenKai TC + Meslo LGSDZ Nerd Font`，`ENS Font Mono = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font Mono`，`ENS Font Mono Prop = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font`。
 
 ### 字體檔案
 
 | 檔案 | 字重 |
 |------|------|
-| `ENSFont-Regular.ttf`      | Regular      |
-| `ENSFont-Bold.ttf`         | Bold         |
-| `ENSFontMono-Regular.ttf`  | Regular Mono |
-| `ENSFontMono-Bold.ttf`     | Bold Mono    |
+| `ENSFont-Regular.ttf`          | Regular           |
+| `ENSFont-Bold.ttf`             | Bold              |
+| `ENSFontMono-Regular.ttf`      | Regular Mono      |
+| `ENSFontMono-Bold.ttf`         | Bold Mono         |
+| `ENSFontMonoProp-Regular.ttf`  | Regular Mono Prop |
+| `ENSFontMonoProp-Bold.ttf`     | Bold Mono Prop    |
 
 下載 `ENSFont-{version}.zip` 取得所有字重。
 

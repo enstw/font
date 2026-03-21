@@ -19,12 +19,14 @@ from fontTools.ttLib.ttCollection import TTCollection
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
-# Canonical order: non-mono first, then mono
+# Canonical order: non-mono first, then mono, then mono-prop
 FONT_ORDER = [
     "ENSFont-Regular.ttf",
     "ENSFont-Bold.ttf",
     "ENSFontMono-Regular.ttf",
     "ENSFontMono-Bold.ttf",
+    "ENSFontMonoProp-Regular.ttf",
+    "ENSFontMonoProp-Bold.ttf",
 ]
 
 

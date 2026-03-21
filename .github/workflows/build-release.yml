@@ -251,6 +251,26 @@ jobs:
             family_name: ENS Font Mono
             ps_family: ENSFontMono
 
+          - style: Regular
+            wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFont-Regular.ttf
+            output_file: ENSFontMonoProp-Regular.ttf
+            is_mono: false
+            is_mono_prop: true
+            family_name: ENS Font Mono Prop
+            ps_family: ENSFontMonoProp
+
+          - style: Bold
+            wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFont-Bold.ttf
+            output_file: ENSFontMonoProp-Bold.ttf
+            is_mono: false
+            is_mono_prop: true
+            family_name: ENS Font Mono Prop
+            ps_family: ENSFontMonoProp
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -298,7 +318,8 @@ jobs:
             --lxgw-version "$LXGW_VER" \
             --nerd-version "$NERD_VER" \
             $DEBUG_ARGS \
-            $(if [ "${{ matrix.is_mono }}" = "true" ]; then echo "--mono"; fi)
+            $(if [ "${{ matrix.is_mono }}" = "true" ]; then echo "--mono"; fi) \
+            $(if [ "${{ matrix.is_mono_prop }}" = "true" ]; then echo "--mono-prop"; fi)
 
       - name: Verify OFL compliance
         run: |
@@ -333,7 +354,7 @@ jobs:
           EOF
 
       - name: Verify monospace conformance
-        if: ${{ matrix.is_mono == true }}
+        if: ${{ matrix.is_mono == true || matrix.is_mono_prop == true }}
         run: python scripts/check_mono.py dist/${{ matrix.output_file }} --cell-width 600
 
       - name: Upload built font
@@ -464,7 +485,9 @@ jobs:
             --notes-file /tmp/release_notes.md \
             dist/ENSFont-Regular.ttf \
             dist/ENSFontMono-Regular.ttf \
+            dist/ENSFontMonoProp-Regular.ttf \
             dist/ENSFont-Bold.ttf \
             dist/ENSFontMono-Bold.ttf \
+            dist/ENSFontMonoProp-Bold.ttf \
             dist/ENSFont.ttc \
             "ENSFont-${{ needs.resolve-params.outputs.version }}.zip"

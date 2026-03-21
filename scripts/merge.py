@@ -544,7 +544,7 @@ def _shift_glyph_x(font: TTFont, gname: str, dx: int) -> None:
     g.recalcBounds(glyf_table)
 
 
-def normalize_half_widths(font: TTFont, cell_width: int) -> None:
+def normalize_half_widths(font: TTFont, cell_width: int, is_mono_prop: bool = False) -> None:
     """
     After transplant, enforce a cell_width-aligned advance grid.
 
@@ -560,15 +560,33 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
 
     When advance width increases, glyph outlines are shifted right by half the
     difference so spacing is distributed evenly on both sides.
+
+    If is_mono_prop is True, we skip normalization for Nerd Font icons in PUA
+    (U+E000-U+F8FF and Plane 15 U+F0000-U+FFFFF) to allow them to be proportional.
     """
     import math
     hmtx = font["hmtx"]
+    cmap = get_best_cmap(font)
+    rev_cmap = {v: k for k, v in cmap.items()}
+
     full_width = 2 * cell_width
     half_to_full_midpoint = (cell_width + full_width) / 2
     half_corrected = 0
     full_corrected = 0
     over_corrected = 0
+    skipped_prop = 0
+
     for gname, (adv, lsb) in list(hmtx.metrics.items()):
+        if adv == 0:
+            continue
+
+        # Skip normalization for Nerd Font icons if in mono-prop mode
+        if is_mono_prop and gname in rev_cmap:
+            cp = rev_cmap[gname]
+            if (0xE000 <= cp <= 0xF8FF) or (0xF0000 <= cp <= 0xFFFFF):
+                skipped_prop += 1
+                continue
+
         if 0 < adv < cell_width:
             dx = (cell_width - adv) // 2
             new_lsb = lsb + dx
@@ -598,11 +616,15 @@ def normalize_half_widths(font: TTFont, cell_width: int) -> None:
             _shift_glyph_x(font, gname, dx)
             hmtx.metrics[gname] = (rounded, new_lsb)
             over_corrected += 1
-    log.info(
+
+    msg = (
         f"  normalize_half_widths: {half_corrected} glyphs -> {cell_width}, "
         f"{full_corrected} glyphs -> {full_width}, "
         f"{over_corrected} glyphs rounded to cell-aligned multiple"
     )
+    if skipped_prop > 0:
+        msg += f" (skipped {skipped_prop} Nerd icons for mono-prop)"
+    log.info(msg)
 
 
 def compute_x_avg_char_width(font: TTFont) -> int:
@@ -639,12 +661,16 @@ def compute_x_avg_char_width(font: TTFont) -> int:
     return round(weighted_sum / total_weight)
 
 
-def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
+def validate_monospace_integrity(
+    font: TTFont, is_mono: bool = False, is_mono_prop: bool = False
+) -> None:
     """
     Verify half-width glyphs have the expected uniform advance width.
 
     For mono builds: checks ASCII + Latin Extended-A/B + Greek & Coptic + Cyrillic
     + Greek Extended + Nerd PUA BMP. Emits log.error + sys.exit(1) on any violation.
+
+    For mono-prop builds: checks ASCII + Latin Extended-A/B, but skips Nerd PUA.
 
     For non-mono builds: checks ASCII only, issues a warning (not error).
     """
@@ -668,7 +694,7 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
             f"ASCII glyphs have {len(ascii_widths)} different advance widths: "
             f"{sorted(ascii_widths)}."
         )
-        if is_mono:
+        if is_mono or is_mono_prop:
             log.error(f"MONOSPACE INTEGRITY FAIL: {msg}")
             sys.exit(1)
         else:
@@ -678,7 +704,7 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
     cell_width = ascii_widths.pop()
     log.info(f"Monospace integrity: ASCII cell width = {cell_width} units")
 
-    if not is_mono:
+    if not is_mono and not is_mono_prop:
         log.info("Monospace integrity OK (ASCII-only check for non-mono build)")
         return
 
@@ -688,8 +714,11 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
         (0x0370, 0x03FF, "Greek & Coptic"),
         (0x0400, 0x04FF, "Cyrillic"),
         (0x1F00, 0x1FFF, "Greek Extended"),
-        (0xE000, 0xF8FF, "Nerd PUA BMP"),
     ]
+
+    # Only check Nerd PUA BMP if it's a strict mono build (not mono-prop)
+    if is_mono and not is_mono_prop:
+        extended_ranges.append((0xE000, 0xF8FF, "Nerd PUA BMP"))
 
     violations = []
     for start, end, block_name in extended_ranges:
@@ -712,10 +741,8 @@ def validate_monospace_integrity(font: TTFont, is_mono: bool = False) -> None:
             log.error(f"  ... and {len(violations) - 10} more")
         sys.exit(1)
 
-    log.info(
-        f"Monospace integrity OK: all checked glyphs at {cell_width} units "
-        f"(ASCII + extended ranges)"
-    )
+    checked_scope = "ASCII + Latin ranges" if is_mono_prop else "ASCII + extended ranges"
+    log.info(f"Monospace integrity OK: all checked glyphs at {cell_width} units ({checked_scope})")
 
 
 def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
@@ -881,6 +908,7 @@ def merge_fonts(
     lxgw_ver: str,
     nerd_ver: str,
     is_mono: bool = False,
+    is_mono_prop: bool = False,
     debug_vertical_cps: list[int] | None = None,
 ) -> None:
     """
@@ -911,8 +939,9 @@ def merge_fonts(
     # terminal apps (especially macOS Terminal.app).
     cell_width = MONO_CELL_WIDTH
 
-    if is_mono:
-        assert_donor_is_mono(donor, donor_path)
+    if is_mono or is_mono_prop:
+        if is_mono:
+            assert_donor_is_mono(donor, donor_path)
         donor_cmap = get_best_cmap(donor)
         a_glyph = donor_cmap.get(ord('A'))
         if a_glyph and a_glyph in donor["hmtx"].metrics:
@@ -942,7 +971,7 @@ def merge_fonts(
     # through at 500/1000 wide. Bump/snap all advances to the 600/1200 grid
     # and center the glyphs within their new cells.
     log.info("Normalizing half-width advances to cell width...")
-    normalize_half_widths(base, cell_width)
+    normalize_half_widths(base, cell_width, is_mono_prop=is_mono_prop)
 
     # Rebuild glyph order for internal consistency
     log.info("Rebuilding glyph order...")
@@ -967,8 +996,8 @@ def merge_fonts(
     fix_block_elements(base)
 
     # Set monospaced metadata
-    log.info(f"Setting {'monospaced' if is_mono else 'proportional'} metadata...")
-    set_monospaced_metadata(base, is_mono)
+    log.info(f"Setting {'monospaced' if (is_mono or is_mono_prop) else 'proportional'} metadata...")
+    set_monospaced_metadata(base, (is_mono or is_mono_prop))
 
     # Set xAvgCharWidth using the OpenType spec weighted formula.
     # Done after normalize_half_widths so widths are already corrected.
@@ -980,6 +1009,9 @@ def merge_fonts(
     if is_mono:
         log.info("Validating monospace integrity (extended ranges)...")
         validate_monospace_integrity(base, is_mono=True)
+    elif is_mono_prop:
+        log.info("Validating monospace integrity (ASCII + Latin ranges)...")
+        validate_monospace_integrity(base, is_mono=True, is_mono_prop=True)
     else:
         log.info("Validating monospace integrity (ASCII only)...")
         validate_monospace_integrity(base, is_mono=False)
@@ -1036,6 +1068,7 @@ def main():
         "--nerd-version", required=True, help="Nerd Fonts upstream version"
     )
     parser.add_argument("--mono", action="store_true", help="Assert that the output should be monospaced")
+    parser.add_argument("--mono-prop", action="store_true", help="Assert monospaced metadata but allow proportional Nerd Font icons")
     parser.add_argument(
         "--debug-vertical",
         nargs="*",
@@ -1064,6 +1097,7 @@ def main():
         lxgw_ver=args.lxgw_version,
         nerd_ver=args.nerd_version,
         is_mono=args.mono,
+        is_mono_prop=args.mono_prop,
         debug_vertical_cps=debug_vertical_cps,
     )
 

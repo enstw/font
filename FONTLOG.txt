@@ -25,6 +25,7 @@ Change Log
   - ASCII/PUA: Meslo LGSDZ Nerd Font v3.4.0
   - Donor precedence: Meslo LGSDZ > LXGW WenKai
   - OS/2 metrics aligned to Meslo LGSDZ for terminal compatibility
+  - Added "ENS Font Mono Prop" variant for Ubuntu Terminal (proportional PUA)
 
 ---
 
