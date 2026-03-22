@@ -202,7 +202,9 @@ jobs:
           echo "Downloading ${ARCHIVE_SYMBOLS} ..."
           curl -fsSL "$URL_SYMBOLS" -o "/tmp/${ARCHIVE_SYMBOLS}"
           echo "Extracting Symbols fonts ..."
-          unzip -j "/tmp/${ARCHIVE_SYMBOLS}" "NerdFontsSymbolsOnly.ttf" -d fonts/symbols/
+          # In v3.4.0+, the file is named SymbolsNerdFont-Regular.ttf
+          unzip -j "/tmp/${ARCHIVE_SYMBOLS}" "SymbolsNerdFont-Regular.ttf" -d fonts/symbols/
+          mv fonts/symbols/SymbolsNerdFont-Regular.ttf fonts/symbols/NerdFontsSymbolsOnly.ttf
 
       - name: Download Atkinson Hyperlegible Next fonts
         env:
