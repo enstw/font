@@ -215,9 +215,9 @@ def main():
     current_atk_tag = versions["upstream"]["atkinson_hyperlegible_next"]["tag"]
     current_pkg_ver = versions["packaging"]["version"]
     
-    lxgw_repo = versions["upstream"]["lxgw_wenkai"]["repo"]
-    nerd_repo = versions["upstream"]["nerd_fonts"]["repo"]
-    atk_repo = versions["upstream"]["atkinson_hyperlegible_next"]["repo"]
+    lxgw_repo = versions["upstream"]["lxgw_wenkai"].get("repo")
+    nerd_repo = versions["upstream"]["nerd_fonts"].get("repo")
+    atk_repo = versions["upstream"]["atkinson_hyperlegible_next"].get("repo")
 
     print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}, atk={current_atk_tag}")
     print("Checking upstream releases...")
@@ -225,53 +225,62 @@ def main():
     changed = False
     errors = []
 
-    try:
-        lxgw_rel = get_latest_release(lxgw_repo, github_token)
-        new_lxgw_tag = lxgw_rel["tag_name"]
-        if new_lxgw_tag != current_lxgw_tag:
-            print(f"  LXGW WenKai TC: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
-            versions["upstream"]["lxgw_wenkai"]["tag"] = new_lxgw_tag
-            versions["upstream"]["lxgw_wenkai"]["release_date"] = lxgw_rel[
-                "published_at"
-            ]
-            changed = True
-        else:
-            print(f"  LXGW WenKai TC: {current_lxgw_tag}  [no change]")
-    except Exception as e:
-        print(f"  WARNING: Could not check LXGW WenKai TC: {e}", file=sys.stderr)
-        errors.append(f"LXGW WenKai TC check failed: {e}")
+    if lxgw_repo and not versions["upstream"]["lxgw_wenkai"].get("manual"):
+        try:
+            lxgw_rel = get_latest_release(lxgw_repo, github_token)
+            new_lxgw_tag = lxgw_rel["tag_name"]
+            if new_lxgw_tag != current_lxgw_tag:
+                print(f"  LXGW WenKai TC: {current_lxgw_tag} -> {new_lxgw_tag}  [NEW]")
+                versions["upstream"]["lxgw_wenkai"]["tag"] = new_lxgw_tag
+                versions["upstream"]["lxgw_wenkai"]["release_date"] = lxgw_rel[
+                    "published_at"
+                ]
+                changed = True
+            else:
+                print(f"  LXGW WenKai TC: {current_lxgw_tag}  [no change]")
+        except Exception as e:
+            print(f"  WARNING: Could not check LXGW WenKai TC: {e}", file=sys.stderr)
+            errors.append(f"LXGW WenKai TC check failed: {e}")
+    else:
+        print(f"  LXGW WenKai TC: {current_lxgw_tag}  [manual/skipped]")
 
-    try:
-        nerd_rel = get_latest_release(nerd_repo, github_token)
-        new_nerd_tag = nerd_rel["tag_name"]
-        if new_nerd_tag != current_nerd_tag:
-            print(f"  Nerd Fonts: {current_nerd_tag} -> {new_nerd_tag}  [NEW]")
-            versions["upstream"]["nerd_fonts"]["tag"] = new_nerd_tag
-            versions["upstream"]["nerd_fonts"]["release_date"] = nerd_rel[
-                "published_at"
-            ]
-            changed = True
-        else:
-            print(f"  Nerd Fonts: {current_nerd_tag}  [no change]")
-    except Exception as e:
-        print(f"  WARNING: Could not check Nerd Fonts: {e}", file=sys.stderr)
-        errors.append(f"Nerd Fonts check failed: {e}")
+    if nerd_repo and not versions["upstream"]["nerd_fonts"].get("manual"):
+        try:
+            nerd_rel = get_latest_release(nerd_repo, github_token)
+            new_nerd_tag = nerd_rel["tag_name"]
+            if new_nerd_tag != current_nerd_tag:
+                print(f"  Nerd Fonts: {current_nerd_tag} -> {new_nerd_tag}  [NEW]")
+                versions["upstream"]["nerd_fonts"]["tag"] = new_nerd_tag
+                versions["upstream"]["nerd_fonts"]["release_date"] = nerd_rel[
+                    "published_at"
+                ]
+                changed = True
+            else:
+                print(f"  Nerd Fonts: {current_nerd_tag}  [no change]")
+        except Exception as e:
+            print(f"  WARNING: Could not check Nerd Fonts: {e}", file=sys.stderr)
+            errors.append(f"Nerd Fonts check failed: {e}")
+    else:
+        print(f"  Nerd Fonts: {current_nerd_tag}  [manual/skipped]")
 
-    try:
-        atk_rel = get_latest_release(atk_repo, github_token)
-        new_atk_tag = atk_rel["tag_name"]
-        if new_atk_tag != current_atk_tag:
-            print(f"  Atkinson Next: {current_atk_tag} -> {new_atk_tag}  [NEW]")
-            versions["upstream"]["atkinson_hyperlegible_next"]["tag"] = new_atk_tag
-            versions["upstream"]["atkinson_hyperlegible_next"]["release_date"] = atk_rel[
-                "published_at"
-            ]
-            changed = True
-        else:
-            print(f"  Atkinson Next: {current_atk_tag}  [no change]")
-    except Exception as e:
-        print(f"  WARNING: Could not check Atkinson Next: {e}", file=sys.stderr)
-        errors.append(f"Atkinson Next check failed: {e}")
+    if atk_repo and not versions["upstream"]["atkinson_hyperlegible_next"].get("manual"):
+        try:
+            atk_rel = get_latest_release(atk_repo, github_token)
+            new_atk_tag = atk_rel["tag_name"]
+            if new_atk_tag != current_atk_tag:
+                print(f"  Atkinson Next: {current_atk_tag} -> {new_atk_tag}  [NEW]")
+                versions["upstream"]["atkinson_hyperlegible_next"]["tag"] = new_atk_tag
+                versions["upstream"]["atkinson_hyperlegible_next"]["release_date"] = atk_rel[
+                    "published_at"
+                ]
+                changed = True
+            else:
+                print(f"  Atkinson Next: {current_atk_tag}  [no change]")
+        except Exception as e:
+            print(f"  WARNING: Could not check Atkinson Next: {e}", file=sys.stderr)
+            errors.append(f"Atkinson Next check failed: {e}")
+    else:
+        print(f"  Atkinson Next: {current_atk_tag}  [manual/skipped]")
 
     if errors:
         print(
