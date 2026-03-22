@@ -92,11 +92,10 @@ def merge_fonts(
     log.info("Checking UPM compatibility...")
     check_upm_compatibility(base, donor)
 
-    # Pin output metrics to the canonical 600/1200 grid for both mono and non-mono
-    # builds. While non-mono fonts may have proportional glyphs in general, ENS
-    # Font's core donor (Meslo) and base (WenKai) are largely monospaced, and
-    # centering glyphs within a cell-aligned grid fixes alignment issues in
-    # terminal apps (especially macOS Terminal.app).
+    # Pin output metrics to the canonical 600/1200 grid for monospaced builds.
+    # While non-mono fonts may have proportional glyphs in general, ENS Font's
+    # Mono variants (Mono and Mono Prop) must adhere to a cell-aligned grid
+    # to fix alignment issues in terminal apps (especially macOS Terminal.app).
     cell_width = MONO_CELL_WIDTH
 
     if is_mono or is_mono_prop:
@@ -126,12 +125,17 @@ def merge_fonts(
     )
     log.info(f"  -> {donor_count} glyphs transplanted")
 
-    # Normalize advance widths to the canonical cell grid.
+    # Normalize advance widths to the canonical cell grid for monospaced builds.
     # WenKai uses a 500/1000 grid; codepoints absent from the donor leak
-    # through at 500/1000 wide. Bump/snap all advances to the 600/1200 grid
-    # and center the glyphs within their new cells.
-    log.info("Normalizing half-width advances to cell width...")
-    normalize_half_widths(base, cell_width, is_mono_prop=is_mono_prop)
+    # through at 500/1000 wide. For Mono builds, we bump/snap all advances to
+    # the 600/1200 grid and center the glyphs within their new cells.
+    # Proportional builds skip this to maintain variable-width punctuation,
+    # CJK, and Nerd Font icons.
+    if is_mono or is_mono_prop:
+        log.info("Normalizing half-width advances to cell width...")
+        normalize_half_widths(base, cell_width, is_mono_prop=is_mono_prop)
+    else:
+        log.info("Skipping grid normalization for proportional build.")
 
     # Rebuild glyph order for internal consistency
     log.info("Rebuilding glyph order...")
