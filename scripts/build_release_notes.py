@@ -47,6 +47,7 @@ def build_notes(
     version: str,
     lxgw_tag: str,
     nerd_tag: str,
+    atkinson_tag: str,
     lxgw_body: str,
     nerd_body: str,
     lxgw_changed: bool = True,
@@ -54,6 +55,7 @@ def build_notes(
 ) -> str:
     lxgw_url = f"https://github.com/lxgw/LxgwWenKaiTC/releases/tag/{lxgw_tag}"
     nerd_url = f"https://github.com/ryanoasis/nerd-fonts/releases/tag/{nerd_tag}"
+    atkinson_url = f"https://github.com/googlefonts/atkinson-hyperlegible-next/tree/{atkinson_tag}"
 
     if lxgw_changed:
         lxgw_section = truncate_body(lxgw_body.strip()) if lxgw_body.strip() else "_（無變更記錄）_"
@@ -65,6 +67,9 @@ def build_notes(
     else:
         nerd_section = "_（此版本無變更）_"
 
+    # Shorten SHA for display if it looks like a commit hash
+    atkinson_display = atkinson_tag[:8] if len(atkinson_tag) > 16 else atkinson_tag
+
     return f"""\
 ## ENS Font v{version}
 
@@ -73,19 +78,20 @@ def build_notes(
 | 來源 | 版本 | 用途 |
 |------|------|------|
 | LXGW WenKai TC / LXGW WenKai Mono TC | [{lxgw_tag}]({lxgw_url}) | CJK 字元基底 |
-| Meslo LGSDZ Nerd Font | [{nerd_tag}]({nerd_url}) | ENS Font / ENS Font Mono Prop donor |
+| Atkinson Hyperlegible Next (Nerd-patched) | [{atkinson_display}]({atkinson_url}) | ENS Font donor |
+| Meslo LGSDZ Nerd Font | [{nerd_tag}]({nerd_url}) | ENS Font Mono Prop donor |
 | Meslo LGSDZ Nerd Font Mono | [{nerd_tag}]({nerd_url}) | ENS Font Mono donor |
 
 ### 字元優先權
-1. **Meslo LGSDZ Nerd Font / Meslo LGSDZ Nerd Font Mono** — donor 字型涵蓋的所有字元，一律優先覆蓋 WenKai
+1. **Donor 字型**（Atkinson Hyperlegible Next / Meslo LGSDZ Nerd Font）— donor 涵蓋的所有字元，一律優先覆蓋 WenKai
 2. **LXGW WenKai TC** — donor 沒有的字元，主要為 CJK、假名、全形標點
 
 ### 變體說明
-- **ENS Font**：全比例字體，適合一般閱讀與編輯器。
+- **ENS Font**：全比例字體，使用 Atkinson Hyperlegible Next 作為 ASCII/拉丁 donor，適合一般閱讀與編輯器。
 - **ENS Font Mono**：嚴格等寬字體，圖標縮小至單格寬度，相容性最高。
 - **ENS Font Mono Prop**：**混合等寬字體**，針對 Ubuntu Terminal 等環境優化。中英文保持等寬，但允許 Nerd Font 圖標以原始比例顯示（較大且清晰）。
 
-> 對應規則：`ENS Font = LXGW WenKai TC + Meslo LGSDZ Nerd Font`，`ENS Font Mono = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font Mono`，`ENS Font Mono Prop = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font`。
+> 對應規則：`ENS Font = LXGW WenKai TC + Atkinson Hyperlegible Next (Nerd-patched)`，`ENS Font Mono = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font Mono`，`ENS Font Mono Prop = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font`。
 
 ### 字體檔案
 
@@ -102,7 +108,8 @@ def build_notes(
 
 ### 授權
 - 最終字體：[SIL OFL 1.1](https://openfontlicense.org)
-- ASCII/拉丁字形（Meslo LG）：[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- Atkinson Hyperlegible Next（ENS Font donor）：[SIL OFL 1.1](https://openfontlicense.org)
+- Meslo LG（ENS Font Mono / Mono Prop donor）：[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 - Nerd Fonts 補丁與 PUA 圖標：[MIT License](https://github.com/ryanoasis/nerd-fonts/blob/master/LICENSE)
 
 保留字型名稱：**"ENS Font"** 與 **"Elegant Nerd Sino"**。
@@ -145,6 +152,7 @@ def main():
     parser.add_argument("--version", required=True, help="ENS Font packaging version (e.g. 3.0.0)")
     parser.add_argument("--lxgw-tag", required=True, help="LXGW WenKai release tag (e.g. v1.521)")
     parser.add_argument("--nerd-tag", required=True, help="Nerd Fonts release tag (e.g. v3.4.0)")
+    parser.add_argument("--atkinson-tag", required=True, help="Atkinson Hyperlegible Next tag or commit SHA")
     parser.add_argument(
         "--lxgw-changed",
         default="true",
@@ -180,6 +188,7 @@ def main():
         version=args.version,
         lxgw_tag=args.lxgw_tag,
         nerd_tag=args.nerd_tag,
+        atkinson_tag=args.atkinson_tag,
         lxgw_body=lxgw_body,
         nerd_body=nerd_body,
         lxgw_changed=lxgw_changed,
