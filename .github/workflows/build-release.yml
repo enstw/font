@@ -11,8 +11,9 @@
 # packaged into a ZIP archive and published as a GitHub Release.
 #
 # Upstream donor mapping:
-#   - ENS Font (non-mono): Meslo LGSDZ Nerd Font
-#   - ENS Font Mono:       Meslo LGSDZ Nerd Font Mono
+#   - ENS Font (non-mono):  Atkinson Hyperlegible Next (Nerd-patched)
+#   - ENS Font Mono:        Meslo LGSDZ Nerd Font Mono
+#   - ENS Font Mono Prop:   Meslo LGSDZ Nerd Font (proportional Nerd icons)
 #
 # Required secrets:
 #   BOT_PAT  - Fine-grained PAT with: contents:write
@@ -287,8 +288,8 @@ jobs:
 
           - style: Regular
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
-            donor_subdir: atkinson
-            donor_file: AtkinsonHyperlegibleNext-Patched-Regular.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFont-Regular.ttf
             output_file: ENSFontMonoProp-Regular.ttf
             is_mono: false
             is_mono_prop: true
@@ -297,8 +298,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
-            donor_subdir: atkinson
-            donor_file: AtkinsonHyperlegibleNext-Patched-Bold.ttf
+            donor_subdir: meslo
+            donor_file: MesloLGSDZNerdFont-Bold.ttf
             output_file: ENSFontMonoProp-Bold.ttf
             is_mono: false
             is_mono_prop: true
