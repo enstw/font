@@ -12,12 +12,18 @@
       "tag": "v1.522",
       "release_date": "2026-03-17T15:21:03Z"
     },
+    "atkinson_hyperlegible_next": {
+      "repo": "googlefonts/atkinson-hyperlegible-next",
+      "tag": "v2.001",
+      "release_date": "2024-11-20T00:00:00Z"
+    },
     "nerd_fonts": {
       "repo": "ryanoasis/nerd-fonts",
       "tag": "v3.4.0",
       "release_date": "2025-04-24T18:23:06Z",
       "archives": [
-        "Meslo.tar.xz"
+        "Meslo.tar.xz",
+        "NerdFontsSymbolsOnly.zip"
       ]
     }
   }

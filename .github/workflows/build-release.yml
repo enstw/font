@@ -67,6 +67,7 @@ jobs:
       version: ${{ steps.params.outputs.version }}
       lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
       nerd_tag: ${{ steps.params.outputs.nerd_tag }}
+      atkinson_tag: ${{ steps.params.outputs.atkinson_tag }}
       lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
       nerd_changed: ${{ steps.params.outputs.nerd_changed }}
       debug_vertical: ${{ steps.params.outputs.debug_vertical }}
@@ -82,6 +83,7 @@ jobs:
           GIT_TAG="${{ github.event.client_payload.git_tag || github.event.inputs.git_tag }}"
           LXGW_TAG="${{ github.event.client_payload.lxgw_tag || github.event.inputs.lxgw_tag }}"
           NERD_TAG="${{ github.event.client_payload.nerd_tag || github.event.inputs.nerd_tag }}"
+          ATKINSON_TAG=$(python3 scripts/parse_versions.py versions.json upstream.atkinson_hyperlegible_next.tag --required)
           DEBUG_VERTICAL="${{ github.event.client_payload.debug_vertical || github.event.inputs.debug_vertical || 'false' }}"
           # Fallback: read from versions.json
           if [ -z "$GIT_TAG" ]; then
@@ -123,6 +125,7 @@ jobs:
           echo "version=$VERSION"           >> "$GITHUB_OUTPUT"
           echo "lxgw_tag=$LXGW_TAG"         >> "$GITHUB_OUTPUT"
           echo "nerd_tag=$NERD_TAG"         >> "$GITHUB_OUTPUT"
+          echo "atkinson_tag=$ATKINSON_TAG" >> "$GITHUB_OUTPUT"
           echo "lxgw_changed=$LXGW_CHANGED" >> "$GITHUB_OUTPUT"
           echo "nerd_changed=$NERD_CHANGED" >> "$GITHUB_OUTPUT"
           echo "debug_vertical=$DEBUG_VERTICAL" >> "$GITHUB_OUTPUT"
@@ -132,6 +135,7 @@ jobs:
           echo "  version      : $VERSION"
           echo "  lxgw_tag     : $LXGW_TAG  (prev: $PREV_LXGW, changed: $LXGW_CHANGED)"
           echo "  nerd_tag     : $NERD_TAG  (prev: $PREV_NERD, changed: $NERD_CHANGED)"
+          echo "  atkinson_tag : $ATKINSON_TAG"
           echo "  debug_vertical: $DEBUG_VERTICAL"
 
   # ---------------------------------------------------------------------------
@@ -177,23 +181,50 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r scripts/requirements.txt
 
-      - name: Download Meslo LGSDZ Nerd Fonts archive
+      - name: Download Donor Nerd Fonts archives
         env:
           NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
           mkdir -p fonts/meslo
-          ARCHIVE="Meslo.tar.xz"
-          URL="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE}"
-          echo "Downloading ${ARCHIVE} ..."
-          curl -fsSL "$URL" -o "/tmp/${ARCHIVE}"
+          mkdir -p fonts/symbols
+          
+          # Meslo for Mono variants
+          ARCHIVE_MESLO="Meslo.tar.xz"
+          URL_MESLO="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE_MESLO}"
+          echo "Downloading ${ARCHIVE_MESLO} ..."
+          curl -fsSL "$URL_MESLO" -o "/tmp/${ARCHIVE_MESLO}"
           echo "Extracting Meslo fonts ..."
-          tar -xJf "/tmp/${ARCHIVE}" -C fonts/meslo/
-          echo "Meslo files:"
-          ls -lh fonts/meslo/
-          test -f fonts/meslo/MesloLGSDZNerdFont-Regular.ttf || exit 1
-          test -f fonts/meslo/MesloLGSDZNerdFont-Bold.ttf || exit 1
-          test -f fonts/meslo/MesloLGSDZNerdFontMono-Regular.ttf || exit 1
-          test -f fonts/meslo/MesloLGSDZNerdFontMono-Bold.ttf || exit 1
+          tar -xJf "/tmp/${ARCHIVE_MESLO}" -C fonts/meslo/
+          
+          # NerdFontsSymbolsOnly for patching Atkinson
+          ARCHIVE_SYMBOLS="NerdFontsSymbolsOnly.zip"
+          URL_SYMBOLS="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE_SYMBOLS}"
+          echo "Downloading ${ARCHIVE_SYMBOLS} ..."
+          curl -fsSL "$URL_SYMBOLS" -o "/tmp/${ARCHIVE_SYMBOLS}"
+          echo "Extracting Symbols fonts ..."
+          unzip -j "/tmp/${ARCHIVE_SYMBOLS}" "NerdFontsSymbolsOnly.ttf" -d fonts/symbols/
+
+      - name: Download Atkinson Hyperlegible Next fonts
+        env:
+          ATKINSON_TAG: ${{ needs.resolve-params.outputs.atkinson_tag }}
+        run: |
+          mkdir -p fonts/atkinson_raw
+          # Download Regular and Bold from Google Fonts repo
+          BASE_URL="https://github.com/googlefonts/atkinson-hyperlegible-next/raw/${ATKINSON_TAG}/fonts/ttf"
+          curl -fsSL "${BASE_URL}/AtkinsonHyperlegibleNext-Regular.ttf" -o fonts/atkinson_raw/AtkinsonHyperlegibleNext-Regular.ttf
+          curl -fsSL "${BASE_URL}/AtkinsonHyperlegibleNext-Bold.ttf" -o fonts/atkinson_raw/AtkinsonHyperlegibleNext-Bold.ttf
+
+      - name: Patch Atkinson Hyperlegible Next with Nerd Font symbols
+        run: |
+          mkdir -p fonts/atkinson
+          python scripts/patch.py \
+            --input fonts/atkinson_raw/AtkinsonHyperlegibleNext-Regular.ttf \
+            --symbols fonts/symbols/NerdFontsSymbolsOnly.ttf \
+            --output fonts/atkinson/AtkinsonHyperlegibleNext-Patched-Regular.ttf
+          python scripts/patch.py \
+            --input fonts/atkinson_raw/AtkinsonHyperlegibleNext-Bold.ttf \
+            --symbols fonts/symbols/NerdFontsSymbolsOnly.ttf \
+            --output fonts/atkinson/AtkinsonHyperlegibleNext-Patched-Bold.ttf
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v7
@@ -202,6 +233,7 @@ jobs:
           path: |
             fonts/wenkai/
             fonts/meslo/
+            fonts/atkinson/
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -217,8 +249,8 @@ jobs:
         include:
           - style: Regular
             wenkai_file: LXGWWenKaiTC-Regular.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFont-Regular.ttf
+            donor_subdir: atkinson
+            donor_file: AtkinsonHyperlegibleNext-Patched-Regular.ttf
             output_file: ENSFont-Regular.ttf
             is_mono: false
             family_name: ENS Font
@@ -235,8 +267,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiTC-Medium.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFont-Bold.ttf
+            donor_subdir: atkinson
+            donor_file: AtkinsonHyperlegibleNext-Patched-Bold.ttf
             output_file: ENSFont-Bold.ttf
             is_mono: false
             family_name: ENS Font
@@ -253,8 +285,8 @@ jobs:
 
           - style: Regular
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFont-Regular.ttf
+            donor_subdir: atkinson
+            donor_file: AtkinsonHyperlegibleNext-Patched-Regular.ttf
             output_file: ENSFontMonoProp-Regular.ttf
             is_mono: false
             is_mono_prop: true
@@ -263,8 +295,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFont-Bold.ttf
+            donor_subdir: atkinson
+            donor_file: AtkinsonHyperlegibleNext-Patched-Bold.ttf
             output_file: ENSFontMonoProp-Bold.ttf
             is_mono: false
             is_mono_prop: true

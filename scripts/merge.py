@@ -4,7 +4,7 @@ merge.py - Merges LXGWWenKaiTC(*) + donor font into ENS Font (Elegant Nerd Sino)
 
 Merge strategy:
   Base:   LXGW WenKai TC / WenKai Mono TC  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
-  Donor:  Non-mono: Meslo LGSDZ Nerd Font
+  Donor:  Non-mono: Atkinson Hyperlegible Next (Patched)
           Mono:     Meslo LGSDZ Nerd Font Mono
 
 All donor codepoints are transplanted into the base, overwriting any existing WenKai TC
@@ -14,11 +14,11 @@ from the donor are retained from WenKai TC.
 Usage:
     python scripts/merge.py \
         --wenkai  fonts/wenkai/LXGWWenKaiTC-Regular.ttf \
-        --donor   fonts/meslo/MesloLGSDZNerdFont-Regular.ttf \
+        --donor   fonts/atkinson/AtkinsonHyperlegibleNext-Patched-Regular.ttf \
         --output  dist/ENSFont-Regular.ttf \
         --style   Regular \
-        --version 3.0.0 \
-        --lxgw-version 1.521 \
+        --version 3.1.4 \
+        --lxgw-version 1.522 \
         --nerd-version 3.4.0
 """
 
@@ -75,7 +75,7 @@ def merge_fonts(
     Main merge function.
 
     Base:  LXGW WenKai / WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
-    Donor (non-mono): Meslo LGSDZ Nerd Font
+    Donor (non-mono): Atkinson Hyperlegible Next (Patched)
     Donor (mono):     Meslo LGSDZ Nerd Font Mono
 
     Result is renamed to ENS Font for OFL compliance.
