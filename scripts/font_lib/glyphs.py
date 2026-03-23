@@ -263,12 +263,7 @@ def fix_block_elements(font: TTFont) -> None:
         if g.numberOfContours <= 0:
             continue
         for i, (x, y) in enumerate(g.coordinates):
-            if y >= design_asc:
-                new_y = font_asc
-            elif y <= design_desc:
-                new_y = font_desc
-            else:
-                new_y = round(font_desc + (y - design_desc) / design_cell * font_cell)
+            new_y = round(font_desc + (y - design_desc) / design_cell * font_cell)
             g.coordinates[i] = (x, new_y)
         g.recalcBounds(glyf_table)
         fixed += 1
