@@ -91,6 +91,8 @@ def build_notes(
 - **ENS Font Mono**：嚴格等寬字體，圖標縮小至單格寬度，相容性最高。
 - **ENS Font Mono Prop**：**混合等寬字體**，針對 Ubuntu Terminal 等環境優化。中英文保持等寬，但允許 Nerd Font 圖標以原始比例顯示（較大且清晰）。
 
+> **macOS Terminal.app**：Mono 變體使用 1.07em 壓縮行高，方塊與表格字元無縫銜接，無行間隙縫。
+
 > 對應規則：`ENS Font = LXGW WenKai TC + Atkinson Hyperlegible Next (Nerd-patched)`，`ENS Font Mono = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font Mono`，`ENS Font Mono Prop = LXGW WenKai Mono TC + Meslo LGSDZ Nerd Font`。
 
 ### 字體檔案

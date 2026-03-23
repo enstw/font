@@ -20,6 +20,14 @@ Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".
 
 Change Log
 
+2026-03-23 (v3.1.9) - Compact mono cell height for Terminal.app gap fix
+  - Mono variants: cell height reduced from ~1.26em to 1.07em
+  - Block elements (U+2580-U+259F) and box-drawing (U+2500-U+257F) now
+    overshoot the cell boundary, closing the sub-pixel gap that macOS
+    Terminal.app renders between adjacent lines
+  - Proportional (ENS Font) variants are unaffected
+  - Added utils/analyze_font_metrics.py diagnostic tool
+
 2026 (v3.0.0) - Meslo LGSDZ donor switch
   - Base: LXGW WenKai Mono v1.521
   - ASCII/PUA: Meslo LGSDZ Nerd Font v3.4.0

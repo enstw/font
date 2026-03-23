@@ -64,6 +64,11 @@ Rules: **If the donor font has the character, use it. Otherwise, fill from WenKa
 Select **`ENS Font Mono`** to ensure perfect alignment of icons and text.
 請選擇 **`ENS Font Mono`** 以確保圖標與文字完美對齊。
 
+### macOS Terminal.app — Seamless Block & Box-Drawing
+Mono variants use a compacted 1.07em cell height so that block elements (U+2580–U+259F) and box-drawing characters (U+2500–U+257F) tile seamlessly with **no visible gap** between lines — a common rendering artefact in macOS Terminal.app.
+
+Mono 變體使用壓縮至 1.07em 的行高，使方塊元素與表格繪製字元在 macOS Terminal.app 中**無縫銜接**，消除行間隙縫。
+
 ## 🏗️ Local Build / 本地建置
 
 If you want to build the fonts yourself:
