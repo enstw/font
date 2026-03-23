@@ -37,6 +37,7 @@ from font_lib.cmap import get_best_cmap, ensure_cmap_subtables
 from font_lib.metrics import (
     check_upm_compatibility,
     set_os2_metrics,
+    compact_cell_height,
     compute_x_avg_char_width,
     rebuild_vmtx,
     debug_vertical_alignment,
@@ -158,6 +159,13 @@ def merge_fonts(
     # donor hinting (removeHinting). Rescale y-coordinates to fill the font cell.
     log.info("Fixing block element glyph bounds...")
     fix_block_elements(base)
+
+    # Compact line-height cell for mono builds.
+    # macOS Terminal.app renders a sub-pixel gap between lines. Reducing the cell
+    # height makes existing block/box-drawing overshoot cover the gap.
+    if is_mono or is_mono_prop:
+        log.info("Compacting cell height for terminal gap coverage...")
+        compact_cell_height(base)
 
     # Set monospaced metadata
     log.info(f"Setting {'monospaced' if (is_mono or is_mono_prop) else 'proportional'} metadata...")
