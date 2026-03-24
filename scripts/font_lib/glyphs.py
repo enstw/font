@@ -252,7 +252,18 @@ def fix_block_elements(font: TTFont) -> None:
 
     fixed = 0
     seen: set[str] = set()
-    for cp in range(0x2580, 0x25A0):  # Block Elements
+    # Comprehensive list of cell-filling / edge-touching glyphs:
+    # 1. Box Drawing (2500-257F)
+    # 2. Block Elements (2580-259F)
+    # 3. Powerline & Powerline Extra separators (E0B0-E0D4)
+    # 4. Black Triangles (25E2-25E5)
+    target_cps = (
+        list(range(0x2500, 0x25A0)) +
+        list(range(0xE0B0, 0xE0D5)) +
+        [0xE0D6, 0xE0D7] +
+        list(range(0x25E2, 0x25E6))
+    )
+    for cp in target_cps:
         if cp not in cmap:
             continue
         gname = cmap[cp]
