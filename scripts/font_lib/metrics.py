@@ -179,63 +179,6 @@ def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
     )
 
 
-# Target cell height in em units for mono builds.
-# macOS Terminal.app renders a sub-pixel gap between adjacent lines.
-# Block element and box-drawing glyphs overshoot the cell boundary; reducing
-# the cell height makes the overshoot large enough to cover the renderer gap.
-# Empirically, 1.07 em is the threshold at which the gap disappears.
-MONO_CELL_EM = 1.07
-
-
-def compact_cell_height(font: TTFont) -> None:
-    """
-    Reduce the line-height cell to MONO_CELL_EM while preserving the
-    ascent/descent ratio.
-
-    Glyph outlines are NOT modified — block elements and box-drawing
-    characters naturally overshoot the smaller cell, which covers the
-    sub-pixel gap that macOS Terminal.app renders between lines.
-
-    Must be called AFTER set_os2_metrics() and fix_block_elements().
-    """
-    os2 = font["OS/2"]
-    hhea = font["hhea"]
-    upm = font["head"].unitsPerEm
-
-    old_asc = hhea.ascent
-    old_desc = hhea.descent
-    old_cell = old_asc - old_desc
-
-    target_cell = round(upm * MONO_CELL_EM)
-
-    if old_cell <= target_cell:
-        log.info(
-            f"compact_cell_height: cell already {old_cell} <= target {target_cell} — nothing to do"
-        )
-        return
-
-    ratio = old_asc / old_cell
-    new_asc = round(target_cell * ratio)
-    new_desc = new_asc - target_cell
-
-    hhea.ascent = new_asc
-    hhea.descent = new_desc
-    hhea.lineGap = 0
-
-    os2.sTypoAscender = new_asc
-    os2.sTypoDescender = new_desc
-    os2.sTypoLineGap = 0
-
-    os2.usWinAscent = new_asc
-    os2.usWinDescent = abs(new_desc)
-
-    log.info(
-        f"compact_cell_height: cell {old_cell} -> {target_cell} "
-        f"({old_cell / upm:.2f}em -> {target_cell / upm:.2f}em), "
-        f"ascent {old_asc} -> {new_asc}, descent {old_desc} -> {new_desc}"
-    )
-
-
 def compute_x_avg_char_width(font: TTFont) -> int:
     """
     Compute xAvgCharWidth using the OpenType spec weighted formula.
