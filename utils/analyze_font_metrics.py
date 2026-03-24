@@ -25,22 +25,6 @@ BLOCK_CHARS = {
     0x2593: "DARK SHADE",
 }
 
-BOX_DRAWING_SAMPLES = {
-    0x2500: "LIGHT HORIZONTAL",
-    0x2501: "HEAVY HORIZONTAL",
-    0x2502: "LIGHT VERTICAL",
-    0x2503: "HEAVY VERTICAL",
-    0x250C: "LIGHT DOWN AND RIGHT",
-    0x2510: "LIGHT DOWN AND LEFT",
-    0x2514: "LIGHT UP AND RIGHT",
-    0x2518: "LIGHT UP AND LEFT",
-    0x251C: "LIGHT VERTICAL AND RIGHT",
-    0x2524: "LIGHT VERTICAL AND LEFT",
-    0x253C: "LIGHT VERTICAL AND HORIZONTAL",
-    0x2550: "DOUBLE HORIZONTAL",
-    0x2551: "DOUBLE VERTICAL",
-}
-
 
 def analyze_font(font, name=None):
     if name:
@@ -133,32 +117,6 @@ def analyze_font(font, name=None):
                 f"gap(top={gap_top}, bot={gap_bot})"
             )
         else:
-            print(f"    U+{cp:04X} {name}: glyph={gid} (no outline data)")
-
-    # Box drawing coverage (vertical connectors that should reach cell edges)
-    print()
-    print("  Box drawing coverage (edge-touching glyphs):")
-    for cp, name in sorted(BOX_DRAWING_SAMPLES.items()):
-        gid = cmap.get(cp) if cmap else None
-        if not gid:
-            continue
-
-        yMin = yMax = None
-        if glyf and gid in glyf:
-            g = glyf[gid]
-            if g.numberOfContours != 0:
-                yMin, yMax = g.yMin, g.yMax
-
-        if yMin is not None and yMax is not None:
-            over_top = yMax - cell_top
-            over_bot = cell_bot - yMin
-            if over_top != 0 or over_bot != 0:
-                print(
-                    f"    U+{cp:04X} {name}: "
-                    f"yMin={yMin} yMax={yMax}  "
-                    f"overshoot(top={over_top}, bot={over_bot})"
-                )
-        elif gid:
             print(f"    U+{cp:04X} {name}: glyph={gid} (no outline data)")
 
     # Monospace check
