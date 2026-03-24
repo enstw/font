@@ -1,8 +1,8 @@
 {
   "packaging": {
-    "version": "3.1.9",
-    "last_built": "2026-03-24T12:07:19.119506+00:00",
-    "git_tag": "v3.1.9_lxgw1.522_atk5d633f80fc654ef5fffa7cfc257528685158dcef_meslo-lgsdz_nerd3.4.0",
+    "version": "3.1.10",
+    "last_built": "2026-03-24T12:45:45.803411+00:00",
+    "git_tag": "v3.1.10_lxgw1.522_atk5d633f80fc654ef5fffa7cfc257528685158dcef_meslo-lgsdz_nerd3.4.0",
     "prev_lxgw_tag": "v1.521",
     "prev_nerd_tag": "v3.4.0"
   },
