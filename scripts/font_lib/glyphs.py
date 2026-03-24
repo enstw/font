@@ -292,10 +292,12 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
             if needs_rescale:
                 y = round(font_desc + (y - design_desc) / design_cell * font_cell)
 
-            # Phase 2: apply overshoot — snap edge coordinates
-            if y >= font_asc:
+            # Phase 2: apply overshoot — snap near-edge coordinates
+            # Use tolerance to catch box-drawing verticals that fall slightly
+            # short of the cell edge after rescaling (e.g. yMax=973 vs asc=977)
+            if y >= font_asc - 10:
                 y = overshoot_top_target
-            elif y <= font_desc:
+            elif y <= font_desc + 10:
                 y = overshoot_bot_target
 
             g.coordinates[i] = (x, y)

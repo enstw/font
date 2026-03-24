@@ -75,10 +75,10 @@ def _apply_overshoot(font, top_units, bot_units):
             continue
         changed = False
         for i, (x, y) in enumerate(g.coordinates):
-            if top_units and y >= asc:
+            if top_units and y >= asc - 10:
                 g.coordinates[i] = (x, target_top)
                 changed = True
-            elif bot_units and y <= desc:
+            elif bot_units and y <= desc + 10:
                 g.coordinates[i] = (x, target_bot)
                 changed = True
         if changed:
@@ -88,7 +88,7 @@ def _apply_overshoot(font, top_units, bot_units):
     return fixed
 
 
-def gen_overshoot_font(src_path, top_units, outdir, bot_units=0):
+def gen_overshoot_font(src_path, top_units, outdir, bot_units=0, suffix=""):
     """Generate a test font with block elements extended beyond cell."""
     font = TTFont(src_path)
     fixed = _apply_overshoot(font, top_units, bot_units)
@@ -98,6 +98,8 @@ def gen_overshoot_font(src_path, top_units, outdir, bot_units=0):
         parts.append(f"OT{top_units}")
     if bot_units:
         parts.append(f"OB{bot_units}")
+    if suffix:
+        parts.append(suffix)
     label = "".join(parts) or "O0"
 
     # Rename to avoid conflicts
