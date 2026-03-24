@@ -87,6 +87,21 @@ python scripts/merge.py \
   --version 3.1.3
 ```
 
+## 🛠️ Diagnostic & Testing Tools / 診斷與測試工具
+
+We provide utility scripts in the `utils/` directory for font developers to inspect metrics and test rendering:
+
+- **`analyze_font_metrics.py`**: Inspects vertical metrics (OS/2, hhea) and reports block element/box-drawing coverage and overshoots.
+- **`gen_cell_test_fonts.py`**: Generates variants of a font with different cell heights (e.g., 1.05em, 1.07em) to test line-gap behavior in various terminal emulators.
+
+```bash
+# Analyze a font
+python3 utils/analyze_font_metrics.py dist/ENSFontMono-Regular.ttf
+
+# Generate height variants for testing
+python3 utils/gen_cell_test_fonts.py dist/ENSFontMono-Regular.ttf --em 1.07 1.10
+```
+
 ## 🤝 Contributors / 貢獻者
 
 - [@enstw](https://github.com/enstw) — Project Maintainer
