@@ -3,11 +3,13 @@
 
 Usage:
     python3 utils/analyze_font_metrics.py <font_file> [font_index]
+    python3 utils/analyze_font_metrics.py --diff <font_a> <font_b>
 
 Examples:
     python3 utils/analyze_font_metrics.py dist/JetBrainsMonoNerdFont-Regular.ttf
     python3 utils/analyze_font_metrics.py /System/Library/Fonts/Menlo.ttc 0
     python3 utils/analyze_font_metrics.py /System/Library/Fonts/Supplemental/Raanana.ttc
+    python3 utils/analyze_font_metrics.py --diff dist/ENSFontMonoProp-Regular-ot75ob-20v2.ttf dist/ENSFontMonoProp-Regular.ttf
 """
 
 import sys
@@ -220,7 +222,106 @@ def analyze_font(font, name=None):
     print()
 
 
+ALL_CELL_EDGE_CHARS = {}
+ALL_CELL_EDGE_CHARS.update(BLOCK_CHARS)
+ALL_CELL_EDGE_CHARS.update(BOX_DRAWING_SAMPLES)
+ALL_CELL_EDGE_CHARS.update(POWERLINE_CHARS)
+# Add remaining box-drawing and block element codepoints without explicit names
+for _cp in range(0x2500, 0x25A0):
+    if _cp not in ALL_CELL_EDGE_CHARS:
+        ALL_CELL_EDGE_CHARS[_cp] = f"U+{_cp:04X}"
+for _cp in list(range(0xE0B0, 0xE0D5)) + [0xE0D6, 0xE0D7]:
+    if _cp not in ALL_CELL_EDGE_CHARS:
+        ALL_CELL_EDGE_CHARS[_cp] = f"U+{_cp:04X}"
+for _cp in range(0x25E2, 0x25E6):
+    ALL_CELL_EDGE_CHARS[_cp] = f"BLACK TRIANGLE {_cp:04X}"
+
+
+def diff_fonts(path_a, path_b):
+    """Compare cell-edge glyph coordinates between two fonts."""
+    font_a = TTFont(path_a)
+    font_b = TTFont(path_b)
+    cmap_a = font_a.getBestCmap()
+    cmap_b = font_b.getBestCmap()
+    glyf_a = font_a.get("glyf")
+    glyf_b = font_b.get("glyf")
+
+    if not glyf_a or not glyf_b:
+        print("ERROR: both fonts must be TrueType (glyf) fonts")
+        sys.exit(1)
+
+    name_a = path_a.split("/")[-1]
+    name_b = path_b.split("/")[-1]
+    print(f"=== Diff: {name_a}  vs  {name_b} ===")
+    print()
+
+    diffs = 0
+    same = 0
+    for cp in sorted(ALL_CELL_EDGE_CHARS.keys()):
+        gid_a = cmap_a.get(cp)
+        gid_b = cmap_b.get(cp)
+        if not gid_a or not gid_b:
+            continue
+        if gid_a not in glyf_a or gid_b not in glyf_b:
+            continue
+        ga = glyf_a[gid_a]
+        gb = glyf_b[gid_b]
+        if ga.numberOfContours <= 0 or gb.numberOfContours <= 0:
+            continue
+
+        coords_a = list(ga.coordinates)
+        coords_b = list(gb.coordinates)
+        name = ALL_CELL_EDGE_CHARS.get(cp, "")
+
+        if coords_a == coords_b:
+            same += 1
+            continue
+
+        diffs += 1
+        print(f"  U+{cp:04X} {name} ({gid_a}):")
+        print(f"    bounds A: yMin={ga.yMin} yMax={ga.yMax}  xMin={ga.xMin} xMax={ga.xMax}")
+        print(f"    bounds B: yMin={gb.yMin} yMax={gb.yMax}  xMin={gb.xMin} xMax={gb.xMax}")
+
+        # Show per-point differences
+        max_pts = max(len(coords_a), len(coords_b))
+        if len(coords_a) != len(coords_b):
+            print(f"    point count differs: A={len(coords_a)} B={len(coords_b)}")
+        else:
+            changed = []
+            for j in range(max_pts):
+                xa, ya = coords_a[j]
+                xb, yb = coords_b[j]
+                if xa != xb or ya != yb:
+                    changed.append((j, xa, ya, xb, yb))
+            if len(changed) <= 20:
+                for j, xa, ya, xb, yb in changed:
+                    dx = xb - xa
+                    dy = yb - ya
+                    print(f"    pt[{j:3d}]: ({xa:5d},{ya:5d}) -> ({xb:5d},{yb:5d})  delta=({dx:+d},{dy:+d})")
+            else:
+                print(f"    {len(changed)} points differ (showing first/last 5):")
+                for j, xa, ya, xb, yb in changed[:5]:
+                    dx = xb - xa
+                    dy = yb - ya
+                    print(f"    pt[{j:3d}]: ({xa:5d},{ya:5d}) -> ({xb:5d},{yb:5d})  delta=({dx:+d},{dy:+d})")
+                print(f"    ...")
+                for j, xa, ya, xb, yb in changed[-5:]:
+                    dx = xb - xa
+                    dy = yb - ya
+                    print(f"    pt[{j:3d}]: ({xa:5d},{ya:5d}) -> ({xb:5d},{yb:5d})  delta=({dx:+d},{dy:+d})")
+        print()
+
+    print(f"  Summary: {diffs} glyphs differ, {same} identical")
+
+
 def main():
+    if len(sys.argv) >= 2 and sys.argv[1] == "--diff":
+        if len(sys.argv) != 4:
+            print("Usage: python3 utils/analyze_font_metrics.py --diff <font_a> <font_b>")
+            sys.exit(1)
+        diff_fonts(sys.argv[2], sys.argv[3])
+        return
+
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)

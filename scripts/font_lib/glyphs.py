@@ -265,17 +265,22 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
 
     fixed = 0
     seen: set[str] = set()
-    # All cell-edge glyphs: rescale + overshoot
-    # 1. Box Drawing (2500-257F)
-    # 2. Block Elements (2580-259F)
-    # 3. Powerline & Powerline Extra separators (E0B0-E0D7)
-    # 4. Black Triangles (25E2-25E5)
-    target_cps = (
-        list(range(0x2500, 0x25A0)) +
+
+    # Block elements (2580-259F) need full rescale — they are simple rectangles
+    # whose outlines must be stretched from the old design cell to the font cell.
+    rescale_cps = set(range(0x2580, 0x25A0))
+
+    # Box drawing, powerline, and triangles have meaningful interior coordinates
+    # (stroke midlines, curve control points) that must NOT be rescaled.
+    # Only their near-edge coordinates get snapped to overshoot targets.
+    snap_only_cps = (
+        list(range(0x2500, 0x2580)) +
         list(range(0xE0B0, 0xE0D5)) +
         [0xE0D6, 0xE0D7] +
         list(range(0x25E2, 0x25E6))
     )
+
+    target_cps = list(rescale_cps) + snap_only_cps
     for cp in target_cps:
         if cp not in cmap:
             continue
@@ -287,9 +292,11 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
         if g.numberOfContours <= 0:
             continue
 
+        do_rescale = needs_rescale and cp in rescale_cps
+
         for i, (x, y) in enumerate(g.coordinates):
-            # Phase 1: rescale from design cell to font cell
-            if needs_rescale:
+            # Phase 1: rescale from design cell to font cell (block elements only)
+            if do_rescale:
                 y = round(font_desc + (y - design_desc) / design_cell * font_cell)
 
             # Phase 2: apply overshoot — snap near-edge coordinates
@@ -305,4 +312,4 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
         g.recalcBounds(glyf_table)
         fixed += 1
 
-    log.info(f"fix_block_elements: rescaled {fixed} glyphs")
+    log.info(f"fix_block_elements: fixed {fixed} glyphs")
