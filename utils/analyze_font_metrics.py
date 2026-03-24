@@ -41,6 +41,21 @@ BOX_DRAWING_SAMPLES = {
     0x2551: "DOUBLE VERTICAL",
 }
 
+POWERLINE_CHARS = {
+    0xE0B0: "PL RIGHT TRIANGLE",
+    0xE0B2: "PL LEFT TRIANGLE",
+    0xE0B4: "PL RIGHT SEMI-CIRCLE",
+    0xE0B6: "PL LEFT SEMI-CIRCLE",
+    0xE0B8: "PL LOWER-LEFT TRIANGLE",
+    0xE0BA: "PL LOWER-RIGHT TRIANGLE",
+    0xE0BC: "PL UPPER-LEFT TRIANGLE",
+    0xE0BE: "PL UPPER-RIGHT TRIANGLE",
+    0xE0D2: "PL RIGHT HALF-CIRCLE",
+    0xE0D4: "PL LEFT HALF-CIRCLE",
+    0xE0D6: "PL PIXELATED RIGHT",
+    0xE0D7: "PL PIXELATED LEFT",
+}
+
 
 def analyze_font(font, name=None):
     if name:
@@ -158,6 +173,36 @@ def analyze_font(font, name=None):
                     f"yMin={yMin} yMax={yMax}  "
                     f"overshoot(top={over_top}, bot={over_bot})"
                 )
+        elif gid:
+            print(f"    U+{cp:04X} {name}: glyph={gid} (no outline data)")
+
+    # Powerline separator coverage
+    print()
+    print("  Powerline separator coverage:")
+    for cp, name in sorted(POWERLINE_CHARS.items()):
+        gid = cmap.get(cp) if cmap else None
+        if not gid:
+            print(f"    U+{cp:04X} {name}: MISSING")
+            continue
+
+        yMin = yMax = None
+        if glyf and gid in glyf:
+            g = glyf[gid]
+            if g.numberOfContours != 0:
+                g.recalcBounds(glyf)
+                yMin, yMax = g.yMin, g.yMax
+
+        if yMin is not None and yMax is not None:
+            gh = yMax - yMin
+            coverage = gh / cell_height * 100
+            over_top = yMax - cell_top
+            over_bot = cell_bot - yMin
+            print(
+                f"    U+{cp:04X} {name}: "
+                f"yMin={yMin} yMax={yMax} h={gh}  "
+                f"coverage={coverage:.1f}%  "
+                f"overshoot(top={over_top}, bot={over_bot})"
+            )
         elif gid:
             print(f"    U+{cp:04X} {name}: glyph={gid} (no outline data)")
 

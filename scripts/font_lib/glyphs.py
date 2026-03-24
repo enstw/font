@@ -198,23 +198,30 @@ def normalize_half_widths(font: TTFont, cell_width: int, is_mono_prop: bool = Fa
     log.info(msg)
 
 
-def fix_block_elements(font: TTFont) -> None:
+def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int = -20) -> None:
     """
-    Rescale block element glyphs (U+2580-U+259F) so they fill the font's actual
-    ascent-to-descent cell.
+    Rescale block element glyphs so they fill the font's actual cell, then apply
+    overshoot to compensate for Terminal.app's extra cell padding.
 
-    Background: the Nerd Fonts patcher increases Meslo's hhea.ascent from ~1576 to
-    2001 (in 2048 UPM) to accommodate tall icon glyphs, but does NOT update the
-    block element outlines.  After UPM scaling to 1000, the FULL BLOCK ends up with
-    yMax=770 while hhea.ascent=977 — a 207-unit gap at the top.  Meslo ships a
-    hinting program on each block element that snaps it to fill the cell at render
-    time, but copy_glyph strips all donor hinting (removeHinting) because it
-    references Meslo's FDEF/CVT tables which are absent from the merged font.
+    Phase 1 — Rescale:
+    The Nerd Fonts patcher increases Meslo's hhea.ascent from ~1576 to 2001
+    (in 2048 UPM) to accommodate tall icon glyphs, but does NOT update the
+    block element outlines.  After UPM scaling to 1000, the FULL BLOCK ends up
+    with yMax=770 while hhea.ascent=977.  Meslo ships hinting programs that snap
+    at render time, but copy_glyph strips all donor hinting (removeHinting).
+    Fix: proportionally rescale y-coordinates from the design cell to the font cell.
 
-    Fix: use the FULL BLOCK glyph's raw bounding box as the "design cell" (the
-    original pre-NF-patch ascent/descent) and proportionally rescale every block
-    element glyph's y-coordinates from [design_yMin, design_yMax] to
-    [hhea.descent, hhea.ascent].
+    Phase 2 — Overshoot:
+    macOS Terminal.app allocates a pixel cell taller than the font's declared
+    metrics (CoreText internal leading / rounding).  Empirical testing shows the
+    actual cell extends ~75 units above ascent and the baseline is shifted ~20
+    units down (so the bottom is 20 units higher than declared descent).
+    Coordinates at the cell edges are snapped to overshoot targets so block
+    elements fill Terminal.app's real cell.
+
+    Args:
+        overshoot_top:  units to extend above ascent (positive = upward)
+        overshoot_bot:  units to extend below descent (negative = shrink upward)
 
     Must be called after set_os2_metrics() so the final metrics are in place.
     Only y-coordinates are touched; x-coordinates are preserved so the
@@ -241,21 +248,27 @@ def fix_block_elements(font: TTFont) -> None:
         log.warning("fix_block_elements: FULL BLOCK has zero height — skipping")
         return
 
-    if design_asc == font_asc and design_desc == font_desc:
-        log.info("fix_block_elements: block elements already match font metrics — nothing to do")
-        return
+    needs_rescale = not (design_asc == font_asc and design_desc == font_desc)
 
+    if needs_rescale:
+        log.info(
+            f"fix_block_elements: rescaling y from design cell [{design_desc}, {design_asc}] "
+            f"to font cell [{font_desc}, {font_asc}]"
+        )
+
+    overshoot_top_target = font_asc + overshoot_top
+    overshoot_bot_target = font_desc - overshoot_bot  # bot=-20 -> desc+20 = shrink upward
     log.info(
-        f"fix_block_elements: rescaling y from design cell [{design_desc}, {design_asc}] "
-        f"to font cell [{font_desc}, {font_asc}]"
+        f"fix_block_elements: overshoot top={overshoot_top} bot={overshoot_bot} "
+        f"-> block cell [{overshoot_bot_target}, {overshoot_top_target}]"
     )
 
     fixed = 0
     seen: set[str] = set()
-    # Comprehensive list of cell-filling / edge-touching glyphs:
+    # All cell-edge glyphs: rescale + overshoot
     # 1. Box Drawing (2500-257F)
     # 2. Block Elements (2580-259F)
-    # 3. Powerline & Powerline Extra separators (E0B0-E0D4)
+    # 3. Powerline & Powerline Extra separators (E0B0-E0D7)
     # 4. Black Triangles (25E2-25E5)
     target_cps = (
         list(range(0x2500, 0x25A0)) +
@@ -273,9 +286,20 @@ def fix_block_elements(font: TTFont) -> None:
         g = glyf_table[gname]
         if g.numberOfContours <= 0:
             continue
+
         for i, (x, y) in enumerate(g.coordinates):
-            new_y = round(font_desc + (y - design_desc) / design_cell * font_cell)
-            g.coordinates[i] = (x, new_y)
+            # Phase 1: rescale from design cell to font cell
+            if needs_rescale:
+                y = round(font_desc + (y - design_desc) / design_cell * font_cell)
+
+            # Phase 2: apply overshoot — snap edge coordinates
+            if y >= font_asc:
+                y = overshoot_top_target
+            elif y <= font_desc:
+                y = overshoot_bot_target
+
+            g.coordinates[i] = (x, y)
+
         g.recalcBounds(glyf_table)
         fixed += 1
 
