@@ -270,17 +270,24 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
     # whose outlines must be stretched from the old design cell to the font cell.
     rescale_cps = set(range(0x2580, 0x25A0))
 
-    # Box drawing, powerline, and triangles have meaningful interior coordinates
-    # (stroke midlines, curve control points) that must NOT be rescaled.
+    # Box drawing and geometric triangles have meaningful interior coordinates
+    # (stroke midlines) that must NOT be rescaled.
     # Only their near-edge coordinates get snapped to overshoot targets.
-    snap_only_cps = (
+    snap_overshoot_cps = set(
         list(range(0x2500, 0x2580)) +
-        list(range(0xE0B0, 0xE0D5)) +
-        [0xE0D6, 0xE0D7] +
         list(range(0x25E2, 0x25E6))
     )
 
-    target_cps = list(rescale_cps) + snap_only_cps
+    # Powerline separators snap to exact cell edges (no overshoot).
+    # These glyphs have curves/diagonals whose visual center shifts if overshoot
+    # is asymmetric.  macOS Terminal.app overshoot only helps rectangular fills;
+    # on VTE / GNOME Terminal the asymmetry causes a visible ~1 px vertical shift.
+    snap_exact_cps = set(
+        list(range(0xE0B0, 0xE0D5)) +
+        [0xE0D6, 0xE0D7]
+    )
+
+    target_cps = list(rescale_cps) + list(snap_overshoot_cps) + list(snap_exact_cps)
     for cp in target_cps:
         if cp not in cmap:
             continue
@@ -293,19 +300,20 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
             continue
 
         do_rescale = needs_rescale and cp in rescale_cps
+        use_overshoot = cp in rescale_cps or cp in snap_overshoot_cps
 
         for i, (x, y) in enumerate(g.coordinates):
             # Phase 1: rescale from design cell to font cell (block elements only)
             if do_rescale:
                 y = round(font_desc + (y - design_desc) / design_cell * font_cell)
 
-            # Phase 2: apply overshoot — snap near-edge coordinates
-            # Use tolerance to catch box-drawing verticals that fall slightly
-            # short of the cell edge after rescaling (e.g. yMax=973 vs asc=977)
+            # Phase 2: snap near-edge coordinates
+            # Use tolerance to catch verticals that fall slightly short of
+            # the cell edge after rescaling (e.g. yMax=973 vs asc=977)
             if y >= font_asc - 10:
-                y = overshoot_top_target
+                y = overshoot_top_target if use_overshoot else font_asc
             elif y <= font_desc + 10:
-                y = overshoot_bot_target
+                y = overshoot_bot_target if use_overshoot else font_desc
 
             g.coordinates[i] = (x, y)
 
