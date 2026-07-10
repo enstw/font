@@ -1,7 +1,13 @@
 import pytest
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._c_m_a_p import CmapSubtable
-from font_lib.cmap import get_best_cmap, ensure_cmap_subtables, glyph_name_for_codepoint
+from font_lib.cmap import (
+    get_best_cmap,
+    ensure_cmap_subtables,
+    glyph_name_for_codepoint,
+    dealias_cmap,
+)
+from font_lib.utils import fix_glyph_order
 
 def create_mock_font(cmaps=None):
     font = TTFont()
@@ -73,3 +79,72 @@ def test_ensure_cmap_subtables():
 def test_glyph_name_for_codepoint():
     assert glyph_name_for_codepoint(0x0041, "pre_") == "pre_uni0041"
     assert glyph_name_for_codepoint(0x1F600, "pre_") == "pre_u01F600"
+
+
+def build_aliased_font():
+    """Real minimal TTF: several codepoints share glyphs, as in WenKai."""
+    from fontTools.fontBuilder import FontBuilder
+    from fontTools.pens.ttGlyphPen import TTGlyphPen
+
+    fb = FontBuilder(1000, isTTF=True)
+    glyph_order = [".notdef", "uni9304", "square", "uni0041"]
+    fb.setupGlyphOrder(glyph_order)
+    fb.setupCharacterMap({
+        0x9304: "uni9304",  # 錄 — canonical (matches glyph name)
+        0x9332: "uni9304",  # 録 — variant alias
+        0x20000: "uni9304", # non-BMP alias (format 12 path)
+        0x25A0: "square",   # no uniXXXX name -> keep lowest
+        0x25A1: "square",
+        0x0041: "uni0041",  # already unique, must be untouched
+    })
+    pen = TTGlyphPen(None)
+    pen.moveTo((0, 0)); pen.lineTo((0, 700)); pen.lineTo((500, 700)); pen.lineTo((500, 0)); pen.closePath()
+    box = pen.glyph()
+    fb.setupGlyf({g: box for g in glyph_order})
+    fb.setupHorizontalMetrics({g: (600, 0) for g in glyph_order})
+    fb.setupHorizontalHeader(ascent=800, descent=-200)
+    fb.setupNameTable({"familyName": "Mock", "styleName": "Regular"})
+    fb.setupOS2()
+    fb.setupPost()
+    return fb.font
+
+
+def test_dealias_cmap():
+    font = build_aliased_font()
+    remapped = dealias_cmap(font)
+    assert remapped == 3  # 0x9332, 0x20000, 0x25A1
+
+    cmap = get_best_cmap(font)
+    # kept codepoints still on the original glyphs
+    assert cmap[0x9304] == "uni9304"   # name match wins
+    assert cmap[0x25A0] == "square"    # lowest wins without a uniXXXX name
+    assert cmap[0x0041] == "uni0041"   # unique mapping untouched
+    # alias codepoints remapped to duplicate glyphs
+    assert cmap[0x9332] == "ali_uni9332"
+    assert cmap[0x20000] == "ali_u020000"
+    assert cmap[0x25A1] == "ali_uni25A1"
+
+    # reverse mapping is now unique
+    seen = {}
+    for cp, g in cmap.items():
+        assert g not in seen, f"glyph {g} still shared by {seen[g]:#x} and {cp:#x}"
+        seen[g] = cp
+
+    # duplicates are composites referencing the original, with copied metrics
+    dup = font["glyf"]["ali_uni9332"]
+    assert dup.isComposite()
+    assert dup.components[0].glyphName == "uni9304"
+    assert font["hmtx"]["ali_uni9332"] == font["hmtx"]["uni9304"]
+
+    # non-BMP alias must not leak into BMP (format 4) subtables
+    for sub in font["cmap"].tables:
+        if sub.format == 4:
+            assert 0x20000 not in sub.cmap
+
+    # fix_glyph_order reconciles the new glyphs (pipeline contract)
+    fix_glyph_order(font)
+    order = font.getGlyphOrder()
+    assert "ali_uni9332" in order and "ali_u020000" in order
+
+    # idempotent
+    assert dealias_cmap(font) == 0

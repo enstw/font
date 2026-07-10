@@ -33,7 +33,7 @@ from fontTools.ttLib import TTFont
 # Add the scripts directory to sys.path so we can import from font_lib
 sys.path.insert(0, os.path.dirname(__file__))
 
-from font_lib.cmap import get_best_cmap, ensure_cmap_subtables
+from font_lib.cmap import get_best_cmap, ensure_cmap_subtables, dealias_cmap
 from font_lib.metrics import (
     check_upm_compatibility,
     set_os2_metrics,
@@ -136,6 +136,15 @@ def merge_fonts(
         normalize_half_widths(base, cell_width, is_mono_prop=is_mono_prop)
     else:
         log.info("Skipping grid normalization for proportional build.")
+
+    # De-alias the merged cmap so every codepoint gets its own glyph.
+    # WenKai maps variant codepoints (錄/録, 內/内, U+3000/U+2003) onto shared
+    # glyphs; a PDF's ToUnicode CMap can map a glyph back to only ONE codepoint,
+    # so text copied/searched in generated PDFs comes back as the variant.
+    # Duplicate-and-remap keeps rendering identical while making extraction exact.
+    log.info("De-aliasing cmap (one glyph per codepoint)...")
+    n_dealiased = dealias_cmap(base)
+    log.info(f"  -> {n_dealiased} alias codepoints remapped to duplicate glyphs")
 
     # Rebuild glyph order for internal consistency
     log.info("Rebuilding glyph order...")

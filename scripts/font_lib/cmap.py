@@ -89,3 +89,77 @@ def glyph_name_for_codepoint(codepoint: int, prefix: str) -> str:
     if codepoint <= 0xFFFF:
         return f"{prefix}uni{codepoint:04X}"
     return f"{prefix}u{codepoint:06X}"
+
+
+def dealias_cmap(font: TTFont, prefix: str = "ali_") -> int:
+    """
+    Give every Unicode codepoint its own glyph (one glyph per codepoint).
+
+    LXGW WenKai maps variant/compatibility codepoints onto shared glyphs
+    (錄/録, 內/内, 為/爲, U+3000/U+2003 and Unicode compatibility ideographs).
+    Rendering is correct, but a PDF's ToUnicode CMap can map each glyph back
+    to only ONE codepoint, so text copied or searched in a generated PDF may
+    come back as the variant codepoint instead of the typed one.
+
+    For every glyph reachable from more than one codepoint, keep exactly one
+    codepoint on the original glyph (the one matching its uniXXXX-style
+    production name when possible, else the lowest) and remap each remaining
+    codepoint to a new composite glyph referencing the original — identical
+    outlines and metrics. Codepoint coverage is unchanged; the
+    glyph -> codepoint reverse mapping becomes unique.
+
+    Adds glyphs to glyf/hmtx (and vmtx when present) only — run
+    fix_glyph_order afterwards to reconcile the glyph order (merge.py does).
+
+    Returns the number of alias codepoints remapped. Idempotent: a second
+    run finds no multi-mapped glyphs and returns 0.
+    """
+    import re
+    from collections import defaultdict
+    from fontTools.ttLib.tables._g_l_y_f import Glyph, GlyphComponent
+
+    ROUND_XY_TO_GRID = 0x0004
+    USE_MY_METRICS = 0x0200
+
+    best = get_best_cmap(font)
+    glyph_to_codes = defaultdict(set)
+    for code, gname in best.items():
+        glyph_to_codes[gname].add(code)
+    multi = {g: sorted(cs) for g, cs in glyph_to_codes.items() if len(cs) > 1}
+    if not multi:
+        return 0
+
+    glyf = font["glyf"]
+    hmtx = font["hmtx"]
+    vmtx = font["vmtx"] if "vmtx" in font else None
+    existing = set(font.getGlyphOrder()) | set(glyf.keys())
+    uni_re = re.compile(r"^(?:uni([0-9A-F]{4})|u([0-9A-F]{4,6}))$")
+
+    remapped = 0
+    for gname, codes in sorted(multi.items(), key=lambda kv: kv[1][0]):
+        m = uni_re.match(gname)
+        named_cp = int(m.group(1) or m.group(2), 16) if m else None
+        keep = named_cp if named_cp in codes else codes[0]
+        for cp in codes:
+            if cp == keep:
+                continue
+            new_name = glyph_name_for_codepoint(cp, prefix)
+            while new_name in existing:
+                new_name += ".alt"
+            comp = GlyphComponent()
+            comp.glyphName = gname
+            comp.x, comp.y = 0, 0
+            comp.flags = ROUND_XY_TO_GRID | USE_MY_METRICS
+            dup = Glyph()
+            dup.numberOfContours = -1
+            dup.components = [comp]
+            glyf[new_name] = dup
+            hmtx[new_name] = hmtx[gname]
+            if vmtx is not None and gname in vmtx.metrics:
+                vmtx[new_name] = vmtx[gname]
+            existing.add(new_name)
+            update_cmap(font, cp, new_name)
+            remapped += 1
+
+    log.info(f"De-aliased {remapped} codepoints across {len(multi)} shared glyphs")
+    return remapped
