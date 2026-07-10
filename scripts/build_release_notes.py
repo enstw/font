@@ -8,10 +8,14 @@ then combines them with ENS Font metadata into a single Markdown document.
 
 import argparse
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 import requests
+
+
+ENS_CHANGES_MARKER = "### ENS Font 變更"
 
 
 def get_release_body(repo: str, tag: str, token: str) -> str:
@@ -43,6 +47,82 @@ def truncate_body(body: str, max_lines: int = 50) -> str:
     return "\n".join(lines[:max_lines]) + "\n\n_...（完整內容請見上游 Release 頁面）_"
 
 
+def _format_commit_subject(subject: str) -> str:
+    return subject.strip().replace("@", "＠")
+
+
+def _is_release_chore(subject: str) -> bool:
+    return subject.startswith("chore(versions):")
+
+
+def get_ens_changes(repo: str, token: str, head_ref: str) -> str:
+    """
+    Build a concise list of ENS Font's own changes since the latest GitHub Release.
+
+    Upstream release notes explain donor font changes; this section covers local
+    merge/build logic changes such as cmap fixes. Version-bump-only commits are
+    intentionally omitted because they are release plumbing, not user-facing font
+    changes.
+    """
+    commits = []
+
+    if repo and token:
+        headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
+        try:
+            releases = requests.get(
+                f"https://api.github.com/repos/{repo}/releases?per_page=2",
+                headers=headers,
+                timeout=30,
+            )
+            releases.raise_for_status()
+            release_items = releases.json()
+            if not release_items:
+                raise ValueError("no releases found")
+            # If the latest release was produced before this section existed,
+            # compare against the previous release so the missed local change is
+            # included in the regenerated notes.
+            base_release = release_items[0]
+            if ENS_CHANGES_MARKER not in (base_release.get("body") or "") and len(release_items) > 1:
+                base_release = release_items[1]
+            base_tag = base_release["tag_name"]
+            compare = requests.get(
+                f"https://api.github.com/repos/{repo}/compare/{base_tag}...{head_ref}",
+                headers=headers,
+                timeout=30,
+            )
+            compare.raise_for_status()
+            for item in compare.json().get("commits", []):
+                subject = item.get("commit", {}).get("message", "").splitlines()[0]
+                if subject and not _is_release_chore(subject):
+                    sha = item.get("sha", "")[:7]
+                    commits.append((sha, _format_commit_subject(subject)))
+        except Exception as e:
+            print(f"WARNING: Could not fetch ENS Font commit history: {e}", file=sys.stderr)
+
+    if not commits:
+        try:
+            output = subprocess.check_output(
+                ["git", "log", "--pretty=format:%h%x00%s", "--no-merges", "-20"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            for line in output.splitlines():
+                sha, subject = line.split("\x00", 1)
+                if not _is_release_chore(subject):
+                    commits.append((sha, _format_commit_subject(subject)))
+        except Exception as e:
+            print(f"WARNING: Could not read local git history: {e}", file=sys.stderr)
+
+    if not commits:
+        return "_（此版本無 ENS Font 程式變更）_"
+
+    return "\n".join(f"- {subject} (`{sha}`)" for sha, subject in commits[:20])
+
+
 def build_notes(
     version: str,
     lxgw_tag: str,
@@ -50,6 +130,7 @@ def build_notes(
     atkinson_tag: str,
     lxgw_body: str,
     nerd_body: str,
+    ens_changes: str,
     lxgw_changed: bool = True,
     nerd_changed: bool = True,
 ) -> str:
@@ -105,6 +186,10 @@ def build_notes(
 | `ENSFontMonoProp-Bold.ttf`     | Bold Mono Prop    |
 
 下載 `ENSFont-{version}.zip` 取得所有字重。
+
+{ENS_CHANGES_MARKER}
+
+{ens_changes}
 
 ### 授權
 - 最終字體：[SIL OFL 1.1](https://openfontlicense.org)
@@ -167,8 +252,11 @@ def main():
     args = parser.parse_args()
 
     github_token = os.environ.get("GITHUB_TOKEN", "")
+    github_repo = os.environ.get("GITHUB_REPOSITORY", "")
+    github_sha = os.environ.get("GITHUB_SHA", "HEAD")
     lxgw_changed = parse_bool(args.lxgw_changed)
     nerd_changed = parse_bool(args.nerd_changed)
+    ens_changes = get_ens_changes(github_repo, github_token, github_sha)
 
     lxgw_body = ""
     if lxgw_changed:
@@ -191,6 +279,7 @@ def main():
         atkinson_tag=args.atkinson_tag,
         lxgw_body=lxgw_body,
         nerd_body=nerd_body,
+        ens_changes=ens_changes,
         lxgw_changed=lxgw_changed,
         nerd_changed=nerd_changed,
     )
