@@ -5,6 +5,8 @@ from fontTools.ttLib.tables import _n_a_m_e
 
 log = logging.getLogger(__name__)
 
+STYLE_WEIGHT_CLASS = {"Light": 300, "Regular": 400, "Bold": 700}
+
 def set_font_metadata(
     font: TTFont,
     family_name: str,
@@ -99,7 +101,26 @@ def set_font_metadata(
                 record.string = value.encode("utf-16-be")
             name_table.names.append(record)
 
-    log.info(f"Font name set: {full_name} / PS: {ps_name}")
+    # Style flags must agree with the subfamily name, or font matching breaks:
+    # the Bold build inherits WenKai Medium's OS/2 (weightClass 500, REGULAR
+    # flag set), leaving two faces that both claim to be regular — apps that
+    # match by weight/style bits (CoreText weight lookup, GDI) then resolve
+    # Regular/Bold to the wrong TTC member.
+    os2 = font["OS/2"]
+    head = font["head"]
+    os2.usWeightClass = STYLE_WEIGHT_CLASS.get(style, 400)
+    if style == "Bold":
+        os2.fsSelection = (os2.fsSelection | 0x20) & ~0x40  # set BOLD, clear REGULAR
+        head.macStyle |= 0x01
+    else:
+        os2.fsSelection = (os2.fsSelection | 0x40) & ~0x20  # set REGULAR, clear BOLD
+        head.macStyle &= ~0x01
+
+    log.info(
+        f"Font name set: {full_name} / PS: {ps_name} "
+        f"(weightClass={os2.usWeightClass}, fsSelection=0x{os2.fsSelection:04X}, "
+        f"macStyle={head.macStyle})"
+    )
 
 
 def set_monospaced_metadata(font: TTFont, is_mono: bool) -> None:
