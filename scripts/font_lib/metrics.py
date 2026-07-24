@@ -121,61 +121,33 @@ def check_upm_compatibility(base: TTFont, donor: TTFont) -> None:
         sys.exit(1)
 
 
-def set_os2_metrics(font: TTFont, meslo_ref: TTFont) -> None:
+def set_os2_flags(font: TTFont, donor: TTFont) -> None:
     """
-    Set OS/2 and hhea metrics for terminal compatibility.
+    Post-merge OS/2 housekeeping.
 
-    Rule: Always use the donor font as the metric reference because it defines
-    the rhythm that terminal emulators expect. WenKai's CJK characters will
-    render double-width at the terminal level - this is correct behavior and
-    does not require metric adjustment.
+    Vertical metrics are deliberately NOT touched: the LXGW base now supplies
+    ASCII/Latin, so its line rhythm IS the product's rhythm, and the
+    symbols-only donor's metrics are icon-oriented and irrelevant. (Earlier
+    releases adopted the Meslo/Atkinson text donor's metrics wholesale —
+    that rationale left with those donors.)
 
-    Key rules for terminal compatibility:
-      hhea.ascent  == OS/2.usWinAscent  == OS/2.sTypoAscender
-      hhea.descent == -OS/2.usWinDescent (sign flipped) == OS/2.sTypoDescender
-      These three must be consistent or some terminals clip/overlap lines.
-
-    Setting fsSelection bit 7 (USE_TYPO_METRICS) tells apps to use
-    sTypo* values instead of usWin* values (modern behavior).
+    - fsType = 0: installable embedding (required by OFL)
+    - OR-merge the donor's declared Unicode range bits (PUA coverage)
     """
     os2 = font["OS/2"]
-    hhea = font["hhea"]
-    ref_os2 = meslo_ref["OS/2"]
-    ref_hhea = meslo_ref["hhea"]
+    ref_os2 = donor["OS/2"]
 
-    # Typographic metrics (used by modern apps with USE_TYPO_METRICS)
-    os2.sTypoAscender = ref_os2.sTypoAscender
-    os2.sTypoDescender = ref_os2.sTypoDescender
-    os2.sTypoLineGap = ref_os2.sTypoLineGap
-
-    # Win metrics (used by legacy GDI on Windows)
-    os2.usWinAscent = ref_os2.usWinAscent
-    os2.usWinDescent = ref_os2.usWinDescent
-
-    # hhea must match for cross-platform consistency
-    hhea.ascent = ref_hhea.ascent
-    hhea.descent = ref_hhea.descent
-    hhea.lineGap = ref_hhea.lineGap
-
-    # Set USE_TYPO_METRICS (bit 7 of fsSelection)
-    os2.fsSelection |= 0x80
-
-    # fsType = 0: installable embedding (required by OFL)
     os2.fsType = 0
 
-    # Text metrics from the Meslo donor for correct rendering hints
-    os2.sxHeight = ref_os2.sxHeight
-    os2.sCapHeight = ref_os2.sCapHeight
-
-    # Merge Unicode range bits: OR together both fonts' declared ranges
-    os2.ulUnicodeRange1 = ref_os2.ulUnicodeRange1 | font["OS/2"].ulUnicodeRange1
-    os2.ulUnicodeRange2 = ref_os2.ulUnicodeRange2 | font["OS/2"].ulUnicodeRange2
-    os2.ulUnicodeRange3 = ref_os2.ulUnicodeRange3 | font["OS/2"].ulUnicodeRange3
-    os2.ulUnicodeRange4 = ref_os2.ulUnicodeRange4 | font["OS/2"].ulUnicodeRange4
+    os2.ulUnicodeRange1 |= ref_os2.ulUnicodeRange1
+    os2.ulUnicodeRange2 |= ref_os2.ulUnicodeRange2
+    os2.ulUnicodeRange3 |= ref_os2.ulUnicodeRange3
+    os2.ulUnicodeRange4 |= ref_os2.ulUnicodeRange4
 
     log.info(
-        f"OS/2 metrics: ascender={os2.sTypoAscender}, "
-        f"descender={os2.sTypoDescender}, lineGap={os2.sTypoLineGap}"
+        f"OS/2 flags set (metrics kept from base): typo=({os2.sTypoAscender},"
+        f"{os2.sTypoDescender},{os2.sTypoLineGap}) hhea=({font['hhea'].ascent},"
+        f"{font['hhea'].descent},{font['hhea'].lineGap})"
     )
 
 

@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
 """
-merge.py - Merges LXGWWenKaiTC(*) + donor font into ENS Font (Elegant Nerd Sino).
+merge.py - Merges LXGWWenKaiTC(*) + Nerd Fonts symbols into ENS Font (Elegant Nerd Sino).
 
 Merge strategy:
-  Base:   LXGW WenKai TC / WenKai Mono TC  — CJK, Hiragana, Katakana, fullwidth, and all other glyphs
-  Donor:  Non-mono: Atkinson Hyperlegible Next (Patched)
-          Mono:     Meslo LGSDZ Nerd Font Mono
+  Base:   LXGW WenKai TC / WenKai Mono TC  — ASCII, Latin, CJK, kana, fullwidth,
+          box drawing: every text glyph
+  Donor:  Symbols Nerd Font (Mono flavor for the strict-mono build) — PUA icons only
 
 All donor codepoints are transplanted into the base, overwriting any existing WenKai TC
-entry at the same codepoint. WenKai TC serves as the failsafe: only codepoints absent
-from the donor are retained from WenKai TC.
+entry at the same codepoint (in practice only the handful of Powerline glyphs both
+fonts carry). WenKai TC provides everything else, including the entire ASCII range.
 
 Usage:
     python scripts/merge.py \
         --wenkai  fonts/wenkai/LXGWWenKaiTC-Regular.ttf \
-        --donor   fonts/atkinson/AtkinsonHyperlegibleNext-Patched-Regular.ttf \
+        --donor   fonts/symbols/SymbolsNerdFont-Regular.ttf \
         --output  dist/ENSFont-Regular.ttf \
         --style   Regular \
-        --version 3.1.4 \
+        --version 4.0.0 \
         --lxgw-version 1.522 \
         --nerd-version 3.4.0
 """
@@ -33,10 +33,10 @@ from fontTools.ttLib import TTFont
 # Add the scripts directory to sys.path so we can import from font_lib
 sys.path.insert(0, os.path.dirname(__file__))
 
-from font_lib.cmap import get_best_cmap, ensure_cmap_subtables, dealias_cmap
+from font_lib.cmap import ensure_cmap_subtables, dealias_cmap
 from font_lib.metrics import (
     check_upm_compatibility,
-    set_os2_metrics,
+    set_os2_flags,
     compute_x_avg_char_width,
     rebuild_vmtx,
     debug_vertical_alignment,
@@ -45,15 +45,18 @@ from font_lib.glyphs import (
     transplant_glyphs,
     normalize_half_widths,
     fix_block_elements,
+    fit_nerd_icons,
 )
 from font_lib.metadata import set_font_metadata, set_monospaced_metadata
-from font_lib.validation import assert_donor_is_mono, validate_monospace_integrity
+from font_lib.validation import validate_monospace_integrity
 from font_lib.utils import parse_debug_codepoints, fix_glyph_order
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
-MONO_CELL_WIDTH = 600
+# The LXGW native half/full grid. The base font supplies ASCII, so the cell
+# is simply LXGW Mono TC's own 500/1000 design grid.
+MONO_CELL_WIDTH = 500
 DEFAULT_VERTICAL_DEBUG = ["H", "x", "█", "─", "│", "中", "你"]
 
 
@@ -74,9 +77,8 @@ def merge_fonts(
     """
     Main merge function.
 
-    Base:  LXGW WenKai / WenKai Mono  - CJK, Hiragana, Katakana, fullwidth glyphs
-    Donor (non-mono): Atkinson Hyperlegible Next (Patched)
-    Donor (mono):     Meslo LGSDZ Nerd Font Mono
+    Base:  LXGW WenKai / WenKai Mono  - all text glyphs including ASCII/Latin
+    Donor: Symbols Nerd Font (Mono flavor for strict-mono builds) - PUA icons
 
     Result is renamed to ENS Font for OFL compliance.
     """
@@ -92,23 +94,8 @@ def merge_fonts(
     log.info("Checking UPM compatibility...")
     check_upm_compatibility(base, donor)
 
-    # Pin output metrics to the canonical 600/1200 grid for monospaced builds.
-    # While non-mono fonts may have proportional glyphs in general, ENS Font's
-    # Mono variants (Mono and Mono Prop) must adhere to a cell-aligned grid
-    # to fix alignment issues in terminal apps (especially macOS Terminal.app).
+    # LXGW's native half/full grid; Mono variants keep it as the cell grid.
     cell_width = MONO_CELL_WIDTH
-
-    if is_mono or is_mono_prop:
-        if is_mono:
-            assert_donor_is_mono(donor, donor_path)
-        donor_cmap = get_best_cmap(donor)
-        a_glyph = donor_cmap.get(ord('A'))
-        if a_glyph and a_glyph in donor["hmtx"].metrics:
-            donor_cell_width = donor["hmtx"].metrics[a_glyph][0]
-            log.info(f"  Donor cell width: {donor_cell_width} units (from 'A')")
-        else:
-            log.warning("  Donor cell width unavailable; using canonical mono width")
-        log.info(f"  Canonical mono cell width: {cell_width} units")
 
     # Ensure base has both BMP and full-Unicode cmap subtables
     log.info("Ensuring cmap subtable coverage...")
@@ -125,12 +112,24 @@ def merge_fonts(
     )
     log.info(f"  -> {donor_count} glyphs transplanted")
 
-    # Normalize advance widths to the canonical cell grid for monospaced builds.
-    # WenKai uses a 500/1000 grid; codepoints absent from the donor leak
-    # through at 500/1000 wide. For Mono builds, we bump/snap all advances to
-    # the 600/1200 grid and center the glyphs within their new cells.
-    # Proportional builds skip this to maintain variable-width punctuation,
-    # CJK, and Nerd Font icons.
+    # Fit transplanted Nerd icons to the base font's geometry.
+    # The symbols-only donor is not pre-fitted to any text font's cell (that
+    # used to be the Nerd Fonts patcher's job). Powerline separators stretch
+    # to fill the line box in every variant; strict Mono additionally scales
+    # every icon into a single 500-unit cell.
+    log.info("Fitting Nerd icons to base geometry...")
+    fit_nerd_icons(
+        base,
+        donor,
+        cell_width=cell_width if (is_mono or is_mono_prop) else None,
+        fit_all=is_mono,
+    )
+
+    # Normalize advance widths to the cell grid for monospaced builds.
+    # The base already lives on the 500/1000 grid, so this is a safety net
+    # for off-grid stragglers and proportional donor icons (mono-prop snaps
+    # them to cell multiples). Proportional builds skip this to maintain
+    # variable-width punctuation, CJK, and Nerd Font icons.
     if is_mono or is_mono_prop:
         log.info("Normalizing half-width advances to cell width...")
         normalize_half_widths(base, cell_width, is_mono_prop=is_mono_prop)
@@ -157,15 +156,16 @@ def merge_fonts(
     log.info("Setting font metadata (OFL compliance)...")
     set_font_metadata(base, family_name, ps_family, style, version, lxgw_ver, nerd_ver)
 
-    # Set OS/2 and hhea metrics from donor reference
-    log.info("Setting OS/2/hhea metrics from donor...")
-    set_os2_metrics(base, donor)
+    # OS/2 housekeeping. Vertical metrics stay LXGW's own: the base supplies
+    # the text glyphs, so its line rhythm is the product's rhythm.
+    log.info("Setting OS/2 flags (metrics kept from LXGW base)...")
+    set_os2_flags(base, donor)
 
-    # Fix block element glyphs (U+2580-U+259F).
-    # Nerd Fonts patching increased Meslo's ascent but left block element outlines
-    # at the old bounds. Meslo's hinting corrects this at render time, but we strip
-    # donor hinting (removeHinting). Rescale y-coordinates to fill the font cell.
-    log.info("Fixing block element glyph bounds...")
+    # Fix block element / box drawing glyph bounds.
+    # LXGW draws them on its typographic design box, but terminals size the
+    # cell from hhea metrics; rescale so stacked blocks and vertical strokes
+    # tile without horizontal gaps.
+    log.info("Fixing block element / box drawing glyph bounds...")
     fix_block_elements(base)
 
     # Set monospaced metadata
@@ -213,7 +213,7 @@ def main():
         description="Merge LXGWWenKaiTC(*) + donor font into ENS Font"
     )
     parser.add_argument("--wenkai", required=True, help="Path to LXGWWenKaiTC*.ttf")
-    parser.add_argument("--donor", required=True, help="Path to donor TTF (Meslo LGSDZ Nerd Font or Meslo LGSDZ Nerd Font Mono)")
+    parser.add_argument("--donor", required=True, help="Path to donor TTF (SymbolsNerdFont or SymbolsNerdFontMono)")
     parser.add_argument("--output", required=True, help="Output .ttf path")
     parser.add_argument(
         "--family-name",

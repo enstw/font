@@ -83,6 +83,116 @@ def transplant_glyphs(
     return count
 
 
+# Powerline separator glyphs (E0B0+ dividers and Powerline-extra shapes) must
+# fill the terminal cell edge-to-edge / top-to-bottom so adjacent prompt
+# segments join seamlessly. Shared by fit_nerd_icons (stretch) and
+# fix_block_elements (edge snap).
+POWERLINE_FILL_CPS = frozenset(list(range(0xE0B0, 0xE0D5)) + [0xE0D6, 0xE0D7])
+
+
+def _transform_glyph(font: TTFont, gname: str, sx: float, sy: float, dx: float, dy: float) -> bool:
+    """Apply x' = x*sx + dx, y' = y*sy + dy to a simple glyf glyph."""
+    glyf_table = font["glyf"]
+    g = glyf_table[gname]
+    if g.numberOfContours <= 0:
+        return False
+    for i, (x, y) in enumerate(g.coordinates):
+        g.coordinates[i] = (round(x * sx + dx), round(y * sy + dy))
+    g.recalcBounds(glyf_table)
+    return True
+
+
+def fit_nerd_icons(
+    font: TTFont,
+    donor: TTFont,
+    prefix: str = "don_",
+    cell_width: int | None = None,
+    fit_all: bool = False,
+) -> None:
+    """
+    Geometry pass for transplanted Nerd icon glyphs (every donor codepoint —
+    the symbols-only donor carries icons exclusively, including a few outside
+    PUA such as the IEC power symbols and the heavy angle brackets ❮❯).
+
+    The Symbols Nerd Font donor is icon-only: its glyphs are drawn on the
+    donor's own em/line box and are NOT pre-fitted to the base font's cell
+    (that fitting used to be the Nerd Fonts patcher's job when the donor was
+    a patched text font). Two treatments:
+
+    1. Powerline separators (POWERLINE_FILL_CPS): stretched non-uniformly to
+       fill the base line box [hhea.descent, hhea.ascent] vertically and the
+       full advance horizontally. cell_width forces the advance to one cell
+       (mono / mono-prop); None keeps each glyph's own advance (proportional).
+
+    2. All other icons, only when fit_all=True (strict mono): ONE shared
+       affine transform scales the donor em down to cell_width and centers
+       the donor line box in the base line box. A single transform (instead
+       of per-glyph bbox fitting) preserves the icon set's internal relative
+       alignment and sizing. Advance is pinned to cell_width.
+
+    Must run after check_upm_compatibility (donor already scaled to base UPM)
+    and after transplant_glyphs, but before normalize_half_widths.
+    """
+    from .cmap import get_best_cmap
+
+    cmap = get_best_cmap(font)
+    glyf_table = font["glyf"]
+    hmtx = font["hmtx"]
+
+    base_asc = font["hhea"].ascent
+    base_desc = font["hhea"].descent
+    donor_asc = donor["hhea"].ascent
+    donor_desc = donor["hhea"].descent
+    upm = font["head"].unitsPerEm
+
+    # Shared uniform transform for non-powerline icons (strict mono only):
+    # scale the donor em (== base UPM after scaling) to the cell, then center
+    # the donor line box midpoint on the base line box midpoint.
+    s = (cell_width / upm) if cell_width else 1.0
+    dy_center = (base_asc + base_desc) / 2 - ((donor_asc + donor_desc) / 2) * s
+
+    stretched = 0
+    fitted = 0
+    seen: set[str] = set()
+
+    for cp, gname in sorted(cmap.items()):
+        if not gname.startswith(prefix) or gname in seen:
+            continue
+        seen.add(gname)
+        g = glyf_table[gname]
+        if g.numberOfContours <= 0:
+            continue
+
+        adv, _lsb = hmtx.metrics[gname]
+
+        if cp in POWERLINE_FILL_CPS:
+            g.recalcBounds(glyf_table)
+            width = g.xMax - g.xMin
+            height = g.yMax - g.yMin
+            if width <= 0 or height <= 0:
+                continue
+            target_w = cell_width if cell_width else adv
+            sx = target_w / width
+            sy = (base_asc - base_desc) / height
+            _transform_glyph(
+                font, gname,
+                sx, sy,
+                dx=-g.xMin * sx,
+                dy=base_desc - g.yMin * sy,
+            )
+            hmtx.metrics[gname] = (target_w, g.xMin)
+            stretched += 1
+        elif fit_all and cell_width:
+            _transform_glyph(font, gname, s, s, dx=0, dy=dy_center)
+            hmtx.metrics[gname] = (cell_width, g.xMin)
+            fitted += 1
+
+    log.info(
+        f"  fit_nerd_icons: {stretched} powerline glyphs stretched to line box"
+        + (f", {fitted} icons fitted to {cell_width}-unit cell" if fit_all else "")
+    )
+
+
 def _shift_glyph_x(font: TTFont, gname: str, dx: int) -> None:
     """Translate all x-coordinates of a glyf glyph by dx units."""
     glyf_table = font["glyf"]
@@ -104,14 +214,15 @@ def normalize_half_widths(font: TTFont, cell_width: int, is_mono_prop: bool = Fa
     """
     After transplant, enforce a cell_width-aligned advance grid.
 
-    WenKai Mono TC uses a 500/1000 grid (half/full), but ENSFontMono uses a
-    600/1200 grid. Three passes:
-      1. Sub-half-cell  (0 < adv < cell_width):         bump to cell_width   (500→600)
+    The ENS Font Mono grid is the LXGW native 500/1000 grid (half/full), so
+    for base glyphs this is mostly a no-op; it exists to catch donor glyphs
+    and base stragglers that land off-grid. Three passes:
+      1. Sub-half-cell  (0 < adv < cell_width):         bump to cell_width
       2. Between half/full (cell_width < adv < 2*cell_width): snap by midpoint
-         so near-half widths stay half-width (602→600) while true full-width
-         WenKai glyphs still expand to full-width (1000→1200)
-      3. Over-full-cell (adv > 2*cell_width):            round up to nearest multiple
-                                                         of 2*cell_width (2000→2400, 3000→3600)
+         so near-half widths snap to half-width while near-full widths
+         expand to full-width
+      3. Over-full-cell (adv > 2*cell_width):            round up to nearest
+                                                         multiple of 2*cell_width
     Combining marks (advance=0) and correctly-sized glyphs are untouched.
 
     When advance width increases, glyph outlines are shifted right by half the
@@ -200,16 +311,18 @@ def normalize_half_widths(font: TTFont, cell_width: int, is_mono_prop: bool = Fa
 
 def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int = -20) -> None:
     """
-    Rescale block element glyphs so they fill the font's actual cell, then apply
-    overshoot to compensate for Terminal.app's extra cell padding.
+    Rescale block element and box drawing glyphs so they fill the font's actual
+    cell, then apply overshoot to compensate for Terminal.app's extra cell padding.
 
     Phase 1 — Rescale:
-    The Nerd Fonts patcher increases Meslo's hhea.ascent from ~1576 to 2001
-    (in 2048 UPM) to accommodate tall icon glyphs, but does NOT update the
-    block element outlines.  After UPM scaling to 1000, the FULL BLOCK ends up
-    with yMax=770 while hhea.ascent=977.  Meslo ships hinting programs that snap
-    at render time, but copy_glyph strips all donor hinting (removeHinting).
-    Fix: proportionally rescale y-coordinates from the design cell to the font cell.
+    LXGW WenKai draws block elements and box drawing on its typographic design
+    box (e.g. [-120, 880] in 1000 UPM), but terminal emulators size the cell
+    from hhea/win metrics (e.g. [-241, 928]).  Without correction, stacked
+    blocks and vertical box-drawing strokes show horizontal gaps between rows.
+    Fix: proportionally rescale y-coordinates from the design cell (measured
+    from the FULL BLOCK's raw bounds) to the font cell.  All affected glyphs
+    share one linear transform, so box-drawing midlines and block boundaries
+    keep meeting at the same y (the cell center) and junctions stay connected.
 
     Phase 2 — Overshoot:
     macOS Terminal.app allocates a pixel cell taller than the font's declared
@@ -266,15 +379,13 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
     fixed = 0
     seen: set[str] = set()
 
-    # Block elements (2580-259F) need full rescale — they are simple rectangles
-    # whose outlines must be stretched from the old design cell to the font cell.
-    rescale_cps = set(range(0x2580, 0x25A0))
-
-    # Box drawing and geometric triangles have meaningful interior coordinates
-    # (stroke midlines) that must NOT be rescaled.
-    # Only their near-edge coordinates get snapped to overshoot targets.
-    snap_overshoot_cps = set(
-        list(range(0x2500, 0x2580)) +
+    # Blocks (2580-259F), box drawing (2500-257F), and geometric triangles
+    # (25E2-25E5) all come from the LXGW base and share its design box, so all
+    # of them get the same design-cell -> font-cell rescale.  One shared linear
+    # transform keeps stroke midlines and block boundaries aligned at the cell
+    # center across the whole set.
+    rescale_cps = set(
+        list(range(0x2500, 0x25A0)) +
         list(range(0x25E2, 0x25E6))
     )
 
@@ -282,12 +393,11 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
     # These glyphs have curves/diagonals whose visual center shifts if overshoot
     # is asymmetric.  macOS Terminal.app overshoot only helps rectangular fills;
     # on VTE / GNOME Terminal the asymmetry causes a visible ~1 px vertical shift.
-    snap_exact_cps = set(
-        list(range(0xE0B0, 0xE0D5)) +
-        [0xE0D6, 0xE0D7]
-    )
+    # fit_nerd_icons already stretches these to the exact line box; this pass is
+    # a safety net for any near-edge stragglers.
+    snap_exact_cps = set(POWERLINE_FILL_CPS)
 
-    target_cps = list(rescale_cps) + list(snap_overshoot_cps) + list(snap_exact_cps)
+    target_cps = list(rescale_cps) + list(snap_exact_cps)
     for cp in target_cps:
         if cp not in cmap:
             continue
@@ -300,7 +410,7 @@ def fix_block_elements(font: TTFont, overshoot_top: int = 75, overshoot_bot: int
             continue
 
         do_rescale = needs_rescale and cp in rescale_cps
-        use_overshoot = cp in rescale_cps or cp in snap_overshoot_cps
+        use_overshoot = cp in rescale_cps
 
         for i, (x, y) in enumerate(g.coordinates):
             # Phase 1: rescale from design cell to font cell (block elements only)

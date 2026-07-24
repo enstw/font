@@ -9,8 +9,8 @@ and any derivative works.
 Basic Font Information
 
 ENS Font is a merged terminal font combining:
-  - LXGW WenKai Mono (CJK base layer, SIL OFL 1.1)
-  - Meslo LGSDZ Nerd Font (ASCII/Latin, Apache 2.0; Nerd Fonts PUA icons, MIT)
+  - LXGW WenKai TC / WenKai Mono TC (all text glyphs incl. ASCII/Latin/CJK, SIL OFL 1.1)
+  - Symbols Nerd Font (PUA icons, MIT)
 
 The merge is automated via GitHub Actions and tracks upstream releases.
 
@@ -19,6 +19,14 @@ Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".
 ---
 
 Change Log
+
+2026-07-24 (v4.0.0) - Pure LXGW text, symbols-only donor
+  - Removed Atkinson Hyperlegible Next and Meslo LGSDZ donors entirely
+  - ASCII/Latin now retained from LXGW WenKai TC / WenKai Mono TC
+  - PUA icons transplanted from Symbols Nerd Font (Mono flavor for strict mono)
+  - Mono grid moved from 600/1200 to LXGW's native 500/1000
+  - Vertical metrics now kept from the LXGW base (no donor metric adoption)
+  - Block elements / box drawing rescaled to fill the hhea cell
 
 2026-03-24 (v3.1.9) - Diagnostic & Testing Tools
   - Added utils/analyze_font_metrics.py: Analyze font vertical metrics and
@@ -45,11 +53,8 @@ Acknowledgements
 - Gemini (AI): Development Assistant
   https://gemini.google.com
 
-- Xiaocheng Liao (lxgw): LXGW WenKai Mono TC
+- Xiaocheng Liao (lxgw): LXGW WenKai TC / WenKai Mono TC
   https://github.com/lxgw/LxgwWenKaiTC
-
-- André Berg: Meslo LG font
-  https://github.com/andreberg/Meslo-Font
 
 - Ryan L McIntyre and Nerd Fonts contributors: Nerd Fonts project
   https://github.com/ryanoasis/nerd-fonts

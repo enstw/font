@@ -46,9 +46,8 @@ def set_font_metadata(
 
     copyright_notice = (
         "ENS Font (Elegant Nerd Sino) is a derivative work.\n"
-        "CJK glyphs: LXGW WenKai / WenKai Mono (c) 2021 Xiaocheng Liao, SIL OFL 1.1\n"
-        "Latin/ASCII glyphs: Meslo LG (c) 2009, 2010, 2013 Andre Berg, Apache License 2.0\n"
-        "Nerd patch and PUA icons: Nerd Fonts (c) 2014 Ryan L McIntyre, MIT License\n"
+        "CJK/Latin/ASCII glyphs: LXGW WenKai / WenKai Mono (c) 2021 Xiaocheng Liao, SIL OFL 1.1\n"
+        "PUA icons: Nerd Fonts Symbols (c) 2014 Ryan L McIntyre, MIT License\n"
         f"Compiled font: (c) {datetime.now().year} enstw (https://ens.tw/font), SIL OFL 1.1\n"
         'Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".\n'
         'The names "LXGW", "霞鶩", and "Klee" are NOT used by this derivative.'
@@ -57,7 +56,7 @@ def set_font_metadata(
     license_text = (
         "This Font Software is licensed under the SIL Open Font License, Version 1.1. "
         "This license is available with a FAQ at: https://openfontlicense.org. "
-        "ASCII/Latin glyphs derived from Meslo LG are used under the Apache License 2.0."
+        "PUA icon glyphs from the Nerd Fonts project are used under the MIT License."
     )
 
     entries = [

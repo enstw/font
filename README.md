@@ -14,9 +14,9 @@
 
 ---
 
-**ENS Font** is a hybrid font designed for developers who value CJK (Chinese, Japanese, Korean) aesthetics. It combines **LXGW WenKai TC** (霞鶩文楷) for its poetic CJK strokes and **Meslo LGSDZ Nerd Font** for crisp English characters, symbols, and terminal icons.
+**ENS Font** is a hybrid font designed for developers who value CJK (Chinese, Japanese, Korean) aesthetics. All text — CJK **and** ASCII/Latin — comes from **LXGW WenKai TC** (霞鶩文楷) with its poetic brush strokes, augmented with the full **Nerd Fonts** icon set (PUA) for terminal use.
 
-**ENS Font** 是一款專為注重中英文字型美感的開發者設計的混合字型。它結合了 **霞鶩文楷 (LXGW WenKai TC)** 優雅的書寫感，以及 **Meslo LGSDZ Nerd Font** 清晰的英文、符號與終端機圖標。
+**ENS Font** 是一款專為注重中英文字型美感的開發者設計的混合字型。所有文字（CJK **與** ASCII/拉丁）皆來自 **霞鶩文楷 (LXGW WenKai TC)** 優雅的書寫感，並補上完整的 **Nerd Fonts** 圖標集（PUA），適合終端機使用。
 
 ## 📥 Quick Start / 快速開始
 
@@ -32,11 +32,11 @@ Download the latest version from the [GitHub Releases](https://github.com/enstw/
 
 ## ✨ Variants / 產物說明
 
-| Variant / 產物 | CJK Base | Donor (English/Icons) | Characteristics / 特性 |
+| Variant / 產物 | Text Base (incl. ASCII) | Icon Donor (PUA) | Characteristics / 特性 |
 | :--- | :--- | :--- | :--- |
-| **ENS Font** | WenKai TC | Atkinson Hyperlegible Next | Proportional spacing / 全比例混合 |
-| **ENS Font Mono** | WenKai Mono TC | Meslo LGSDZ NF Mono | **Strictly Monospace.** Ideal for most terminals / 嚴格等寬，終端機首選 |
-| **ENS Font Mono Prop** | WenKai Mono TC | Atkinson Hyperlegible Next | Mixed width. Large icons / 混合等寬，大圖標 |
+| **ENS Font** | WenKai TC | Symbols Nerd Font | Proportional spacing / 全比例混合 |
+| **ENS Font Mono** | WenKai Mono TC | Symbols Nerd Font Mono | **Strictly Monospace** (500/1000 grid, 1-cell icons). Ideal for most terminals / 嚴格等寬，終端機首選 |
+| **ENS Font Mono Prop** | WenKai Mono TC | Symbols Nerd Font | Mixed width. Large icons / 混合等寬，大圖標 |
 
 *Available in **Regular** and **Bold**. We recommend using "Faux Italic" in your editor if needed.*
 *提供 **Regular** 與 **Bold** 兩種字重。若需斜體，請在編輯器或終端機開啟 Faux Italic。*
@@ -48,14 +48,14 @@ Rules: **If the donor font has the character, use it. Otherwise, fill from WenKa
 
 | Source / 來源 | Responsibility / 負責範圍 |
 | :--- | :--- |
-| **Atkinson Hyperlegible / Meslo** | ASCII, Latin, Symbols, Nerd Font Icons (PUA) |
-| **LXGW WenKai TC** | CJK (Hanzi/Kanji), Kana, Full-width Punctuation |
+| **Symbols Nerd Font** | Nerd Font Icons (PUA), Powerline separators |
+| **LXGW WenKai TC** | Everything else: ASCII, Latin, CJK (Hanzi/Kanji), Kana, Punctuation, Box drawing |
 
 ## ⚙️ Usage / 使用建議
 
 ### Visual Studio Code
 ```json
-"editor.fontFamily": "'ENS Font Mono', 'Atkinson Hyperlegible Next', monospace",
+"editor.fontFamily": "'ENS Font Mono', monospace",
 "editor.fontSize": 14,
 "editor.lineHeight": 1.5
 ```
@@ -80,11 +80,13 @@ pip install -r scripts/requirements.txt
 # Download upstreams and run merge (example for Regular)
 # See scripts/merge.py for all flags
 python scripts/merge.py \
-  --wenkai  path/to/WenKai.ttf \
-  --donor   path/to/Atkinson-Patched.ttf \
+  --wenkai  path/to/LXGWWenKaiTC-Regular.ttf \
+  --donor   path/to/SymbolsNerdFont-Regular.ttf \
   --output  dist/ENSFont-Regular.ttf \
   --style   Regular \
-  --version 3.1.3
+  --version 4.0.0 \
+  --lxgw-version 1.522 \
+  --nerd-version 3.4.0
 ```
 
 ## 🛠️ Diagnostic & Testing Tools / 診斷與測試工具
@@ -114,10 +116,8 @@ ENS Font is released under the **SIL Open Font License 1.1**.
 
 | Component / 組件 | License / 授權 | Source / 來源 |
 | :--- | :--- | :--- |
-| [LXGW WenKai TC](https://github.com/lxgw/LxgwWenKaiTC) | SIL OFL 1.1 | CJK Base |
-| [Atkinson Hyperlegible Next](https://github.com/googlefonts/atkinson-hyperlegible-next) | SIL OFL 1.1 | ASCII / Latin (Proportional) |
-| [Meslo LG](https://github.com/andreberg/Meslo-Font) | Apache 2.0 | ASCII / Latin (Mono) |
-| [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) | MIT | Icons & PUA Patches |
+| [LXGW WenKai TC](https://github.com/lxgw/LxgwWenKaiTC) | SIL OFL 1.1 | Text Base (ASCII / Latin / CJK) |
+| [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) | MIT | Icons (PUA) |
 
 *Reserved Font Names: **"ENS Font"** and **"Elegant Nerd Sino"**.*
 *The upstream names "LXGW", "霞鶩", and "Klee" are NOT used in this derivative font.*

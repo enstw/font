@@ -41,22 +41,28 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   `advanceHeight=vhea.advanceHeightMax`, `tsb=vhea.ascent-glyph.yMax`.
 - **Single-pass transplant, donor overrides base unconditionally.** Iterate
   donor cmap and overwrite any overlap — no range filtering, no code-page
-  logic. Base-only glyphs (CJK from WenKai) are preserved naturally since
-  they don't exist in the donor cmap. This applies to both `merge.py`
-  (donor overrides WenKai) and `patch.py` (NerdFontsSymbolsOnly overrides
-  JetBrains Sans). Do NOT add range filtering; the fonts naturally partition
-  the Unicode space.
-- **Block elements (U+2580–U+259F) must be rescaled after transplant.** The Nerd
-  Fonts patcher increases Meslo's ascent (~1576→2001 in 2048 UPM) for tall icons
-  but does NOT update block element outlines. Meslo ships hinting programs that
-  snap them to fill the cell at render time, but `copy_glyph` strips donor hinting
-  (incompatible FDEF/CVT). Without hinting the raw gap is exposed. Fix: after
-  `set_os2_metrics`, call `fix_block_elements` to proportionally rescale y-coords
-  from the FULL BLOCK's raw bounds (the original pre-NF ascent/descent) to the
-  font's actual `[hhea.descent, hhea.ascent]`. Only y-coords are touched; x-coords
-  preserve the intentional horizontal bleed for seamless tiling. Box drawing chars
-  (U+2500–U+257F) are unaffected — the NF patcher already updated their vertical
-  strokes to reach the new ascent.
+  logic. Base-only glyphs (text from WenKai) are preserved naturally since
+  they don't exist in the donor cmap. Since v4 the donor is Symbols Nerd
+  Font (PUA icons only), so the only real overlap is the handful of
+  Powerline glyphs both fonts carry — donor still wins. Do NOT add range
+  filtering; the fonts naturally partition the Unicode space.
+- **The symbols-only donor is not pre-fitted to the base cell.** When the
+  donor was a Nerd-patched text font, the NF patcher had already scaled
+  icons to the donor's cell. Symbols Nerd Font glyphs live on their own
+  em/line box, so `fit_nerd_icons` must run after transplant: Powerline
+  separators stretch to fill `[hhea.descent, hhea.ascent]` edge-to-edge,
+  and strict-Mono builds scale ALL icons into one cell with a single shared
+  affine transform (per-glyph bbox fitting would break the icon set's
+  internal alignment).
+- **Block elements (U+2580–U+259F) AND box drawing (U+2500–U+257F) must be
+  rescaled after merge.** LXGW draws them on its typographic design box
+  (e.g. [-120, 880]), but terminals size the cell from hhea metrics
+  (e.g. [-241, 928]) — stacked blocks and vertical strokes show horizontal
+  gaps without correction. `fix_block_elements` rescales y-coords from the
+  FULL BLOCK's raw bounds to `[hhea.descent, hhea.ascent]` using ONE linear
+  transform shared by the whole range, so midlines and block boundaries
+  keep meeting at the cell center. Only y-coords are touched; x-coords
+  preserve the intentional horizontal bleed for seamless tiling.
 - **Glyph order must be sorted for reproducible binary output.** Sort new
   glyphs in `fix_glyph_order` to avoid non-deterministic TTF diffs.
 - **WenKai has no Bold or Italic.** Use Medium as the CJK base for Bold styles; use Light as the CJK base for Light styles; use Regular as the CJK base for others.

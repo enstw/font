@@ -3,7 +3,7 @@
 check_mono.py - Standalone monospace conformance checker.
 
 Usage:
-    python scripts/check_mono.py <font.ttf> [--cell-width 600]
+    python scripts/check_mono.py <font.ttf> [--cell-width 500]
 
 Checks:
   - post.isFixedPitch == 1
@@ -127,8 +127,8 @@ def main():
     parser.add_argument(
         "--cell-width",
         type=int,
-        default=600,
-        help="Expected half-width cell width in font units (default: 600)",
+        default=500,
+        help="Expected half-width cell width in font units (default: 500)",
     )
     parser.add_argument(
         "--mono-prop",

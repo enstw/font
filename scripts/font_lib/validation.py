@@ -5,28 +5,6 @@ from .cmap import get_best_cmap
 
 log = logging.getLogger(__name__)
 
-def assert_donor_is_mono(donor: TTFont, donor_path: str) -> None:
-    """
-    Verify that the donor font is monospaced by checking if all ASCII
-    printable characters share the same advance width.
-    """
-    cmap = get_best_cmap(donor)
-    hmtx = donor["hmtx"]
-    widths = set()
-    for cp in range(0x0020, 0x007F):
-        if cp in cmap:
-            gname = cmap[cp]
-            if gname in hmtx.metrics:
-                widths.add(hmtx.metrics[gname][0])
-
-    if len(widths) > 1:
-        log.error(
-            f"Donor font '{donor_path}' is NOT monospaced! "
-            f"ASCII widths found: {sorted(widths)}"
-        )
-        sys.exit(1)
-
-
 def validate_monospace_integrity(
     font: TTFont, is_mono: bool = False, is_mono_prop: bool = False
 ) -> None:

@@ -6,14 +6,15 @@
 #   - repository_dispatch (event: upstream-updated) from check-upstream.yml
 #   - workflow_dispatch for manual builds
 #
-# Produces four TTF files: (Regular, Bold) x (ENS Font, ENS Font Mono)
-# plus a TrueType Collection (ENSFont.ttc) bundling all four,
+# Produces six TTF files: (Regular, Bold) x (ENS Font, ENS Font Mono, ENS Font
+# Mono Prop) plus a TrueType Collection (ENSFont.ttc) bundling all six,
 # packaged into a ZIP archive and published as a GitHub Release.
 #
-# Upstream donor mapping:
-#   - ENS Font (non-mono):  Atkinson Hyperlegible Next (Nerd-patched)
-#   - ENS Font Mono:        Meslo LGSDZ Nerd Font Mono
-#   - ENS Font Mono Prop:   Meslo LGSDZ Nerd Font (proportional Nerd icons)
+# All variants use LXGW WenKai TC / Mono TC as the text base (including ASCII).
+# Icon donor mapping (PUA only):
+#   - ENS Font (non-mono):  Symbols Nerd Font (proportional icons)
+#   - ENS Font Mono:        Symbols Nerd Font Mono (1-cell icons)
+#   - ENS Font Mono Prop:   Symbols Nerd Font (proportional Nerd icons)
 #
 # Required secrets:
 #   BOT_PAT  - Fine-grained PAT with: contents:write
@@ -68,7 +69,6 @@ jobs:
       version: ${{ steps.params.outputs.version }}
       lxgw_tag: ${{ steps.params.outputs.lxgw_tag }}
       nerd_tag: ${{ steps.params.outputs.nerd_tag }}
-      atkinson_tag: ${{ steps.params.outputs.atkinson_tag }}
       lxgw_changed: ${{ steps.params.outputs.lxgw_changed }}
       nerd_changed: ${{ steps.params.outputs.nerd_changed }}
       debug_vertical: ${{ steps.params.outputs.debug_vertical }}
@@ -84,7 +84,6 @@ jobs:
           GIT_TAG="${{ github.event.client_payload.git_tag || github.event.inputs.git_tag }}"
           LXGW_TAG="${{ github.event.client_payload.lxgw_tag || github.event.inputs.lxgw_tag }}"
           NERD_TAG="${{ github.event.client_payload.nerd_tag || github.event.inputs.nerd_tag }}"
-          ATKINSON_TAG=$(python3 scripts/parse_versions.py versions.json upstream.atkinson_hyperlegible_next.tag --required)
           DEBUG_VERTICAL="${{ github.event.client_payload.debug_vertical || github.event.inputs.debug_vertical || 'false' }}"
           # Fallback: read from versions.json
           if [ -z "$GIT_TAG" ]; then
@@ -126,7 +125,6 @@ jobs:
           echo "version=$VERSION"           >> "$GITHUB_OUTPUT"
           echo "lxgw_tag=$LXGW_TAG"         >> "$GITHUB_OUTPUT"
           echo "nerd_tag=$NERD_TAG"         >> "$GITHUB_OUTPUT"
-          echo "atkinson_tag=$ATKINSON_TAG" >> "$GITHUB_OUTPUT"
           echo "lxgw_changed=$LXGW_CHANGED" >> "$GITHUB_OUTPUT"
           echo "nerd_changed=$NERD_CHANGED" >> "$GITHUB_OUTPUT"
           echo "debug_vertical=$DEBUG_VERTICAL" >> "$GITHUB_OUTPUT"
@@ -136,7 +134,6 @@ jobs:
           echo "  version      : $VERSION"
           echo "  lxgw_tag     : $LXGW_TAG  (prev: $PREV_LXGW, changed: $LXGW_CHANGED)"
           echo "  nerd_tag     : $NERD_TAG  (prev: $PREV_NERD, changed: $NERD_CHANGED)"
-          echo "  atkinson_tag : $ATKINSON_TAG"
           echo "  debug_vertical: $DEBUG_VERTICAL"
 
   # ---------------------------------------------------------------------------
@@ -172,62 +169,28 @@ jobs:
           test -f fonts/wenkai/LXGWWenKaiMonoTC-Regular.ttf || exit 1
           test -f fonts/wenkai/LXGWWenKaiMonoTC-Medium.ttf || exit 1
 
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: scripts/requirements.txt
-
-      - name: Install Python dependencies
-        run: pip install -r scripts/requirements.txt
-
-      - name: Download Donor Nerd Fonts archives
+      - name: Download Symbols Nerd Font archives
         env:
           NERD_TAG: ${{ needs.resolve-params.outputs.nerd_tag }}
         run: |
-          mkdir -p fonts/meslo
           mkdir -p fonts/symbols
-          
-          # Meslo for Mono variants
-          ARCHIVE_MESLO="Meslo.tar.xz"
-          URL_MESLO="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE_MESLO}"
-          echo "Downloading ${ARCHIVE_MESLO} ..."
-          curl -fsSL "$URL_MESLO" -o "/tmp/${ARCHIVE_MESLO}"
-          echo "Extracting Meslo fonts ..."
-          tar -xJf "/tmp/${ARCHIVE_MESLO}" -C fonts/meslo/
-          
-          # NerdFontsSymbolsOnly for patching Atkinson
+
+          # NerdFontsSymbolsOnly ships both the proportional and Mono flavors;
+          # they are the PUA icon donors for every ENS Font variant.
           ARCHIVE_SYMBOLS="NerdFontsSymbolsOnly.zip"
           URL_SYMBOLS="https://github.com/ryanoasis/nerd-fonts/releases/download/${NERD_TAG}/${ARCHIVE_SYMBOLS}"
           echo "Downloading ${ARCHIVE_SYMBOLS} ..."
           curl -fsSL "$URL_SYMBOLS" -o "/tmp/${ARCHIVE_SYMBOLS}"
           echo "Extracting Symbols fonts ..."
-          # In v3.4.0+, the file is named SymbolsNerdFont-Regular.ttf
-          unzip -j "/tmp/${ARCHIVE_SYMBOLS}" "SymbolsNerdFont-Regular.ttf" -d fonts/symbols/
-          mv fonts/symbols/SymbolsNerdFont-Regular.ttf fonts/symbols/NerdFontsSymbolsOnly.ttf
+          unzip -j "/tmp/${ARCHIVE_SYMBOLS}" \
+            "SymbolsNerdFont-Regular.ttf" \
+            "SymbolsNerdFontMono-Regular.ttf" \
+            -d fonts/symbols/
 
-      - name: Download Atkinson Hyperlegible Next fonts
-        env:
-          ATKINSON_TAG: ${{ needs.resolve-params.outputs.atkinson_tag }}
-        run: |
-          mkdir -p fonts/atkinson_raw
-          # Download Regular and Bold from Google Fonts repo
-          BASE_URL="https://github.com/googlefonts/atkinson-hyperlegible-next/raw/${ATKINSON_TAG}/fonts/ttf"
-          curl -fsSL "${BASE_URL}/AtkinsonHyperlegibleNext-Regular.ttf" -o fonts/atkinson_raw/AtkinsonHyperlegibleNext-Regular.ttf
-          curl -fsSL "${BASE_URL}/AtkinsonHyperlegibleNext-Bold.ttf" -o fonts/atkinson_raw/AtkinsonHyperlegibleNext-Bold.ttf
-
-      - name: Patch Atkinson Hyperlegible Next with Nerd Font symbols
-        run: |
-          mkdir -p fonts/atkinson
-          python scripts/patch.py \
-            --input fonts/atkinson_raw/AtkinsonHyperlegibleNext-Regular.ttf \
-            --symbols fonts/symbols/NerdFontsSymbolsOnly.ttf \
-            --output fonts/atkinson/AtkinsonHyperlegibleNext-Patched-Regular.ttf
-          python scripts/patch.py \
-            --input fonts/atkinson_raw/AtkinsonHyperlegibleNext-Bold.ttf \
-            --symbols fonts/symbols/NerdFontsSymbolsOnly.ttf \
-            --output fonts/atkinson/AtkinsonHyperlegibleNext-Patched-Bold.ttf
+          echo "Symbols Nerd Font downloads:"
+          ls -lh fonts/symbols/
+          test -f fonts/symbols/SymbolsNerdFont-Regular.ttf || exit 1
+          test -f fonts/symbols/SymbolsNerdFontMono-Regular.ttf || exit 1
 
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v7
@@ -235,8 +198,7 @@ jobs:
           name: font-sources
           path: |
             fonts/wenkai/
-            fonts/meslo/
-            fonts/atkinson/
+            fonts/symbols/
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -249,11 +211,13 @@ jobs:
     strategy:
       fail-fast: false # Build all styles even if one fails
       matrix:
+        # The Symbols donors ship Regular only; icons carry no bold weight,
+        # so Bold rows reuse the same symbols file.
         include:
           - style: Regular
             wenkai_file: LXGWWenKaiTC-Regular.ttf
-            donor_subdir: atkinson
-            donor_file: AtkinsonHyperlegibleNext-Patched-Regular.ttf
+            donor_subdir: symbols
+            donor_file: SymbolsNerdFont-Regular.ttf
             output_file: ENSFont-Regular.ttf
             is_mono: false
             family_name: ENS Font
@@ -261,8 +225,8 @@ jobs:
 
           - style: Regular
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFontMono-Regular.ttf
+            donor_subdir: symbols
+            donor_file: SymbolsNerdFontMono-Regular.ttf
             output_file: ENSFontMono-Regular.ttf
             is_mono: true
             family_name: ENS Font Mono
@@ -270,8 +234,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiTC-Medium.ttf
-            donor_subdir: atkinson
-            donor_file: AtkinsonHyperlegibleNext-Patched-Bold.ttf
+            donor_subdir: symbols
+            donor_file: SymbolsNerdFont-Regular.ttf
             output_file: ENSFont-Bold.ttf
             is_mono: false
             family_name: ENS Font
@@ -279,8 +243,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFontMono-Bold.ttf
+            donor_subdir: symbols
+            donor_file: SymbolsNerdFontMono-Regular.ttf
             output_file: ENSFontMono-Bold.ttf
             is_mono: true
             family_name: ENS Font Mono
@@ -288,8 +252,8 @@ jobs:
 
           - style: Regular
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFont-Regular.ttf
+            donor_subdir: symbols
+            donor_file: SymbolsNerdFont-Regular.ttf
             output_file: ENSFontMonoProp-Regular.ttf
             is_mono: false
             is_mono_prop: true
@@ -298,8 +262,8 @@ jobs:
 
           - style: Bold
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
-            donor_subdir: meslo
-            donor_file: MesloLGSDZNerdFont-Bold.ttf
+            donor_subdir: symbols
+            donor_file: SymbolsNerdFont-Regular.ttf
             output_file: ENSFontMonoProp-Bold.ttf
             is_mono: false
             is_mono_prop: true
@@ -395,7 +359,7 @@ jobs:
           if [ "${{ matrix.is_mono_prop }}" = "true" ]; then
             PROP_ARG="--mono-prop"
           fi
-          python scripts/check_mono.py "dist/${{ matrix.output_file }}" --cell-width 600 $PROP_ARG
+          python scripts/check_mono.py "dist/${{ matrix.output_file }}" --cell-width 500 $PROP_ARG
 
       - name: Upload built font
         uses: actions/upload-artifact@v7
@@ -494,7 +458,6 @@ jobs:
             --version        "${{ needs.resolve-params.outputs.version }}" \
             --lxgw-tag       "${{ needs.resolve-params.outputs.lxgw_tag }}" \
             --nerd-tag       "${{ needs.resolve-params.outputs.nerd_tag }}" \
-            --atkinson-tag   "${{ needs.resolve-params.outputs.atkinson_tag }}" \
             --lxgw-changed   "${{ needs.resolve-params.outputs.lxgw_changed }}" \
             --nerd-changed   "${{ needs.resolve-params.outputs.nerd_changed }}" \
             --output         /tmp/release_notes.md

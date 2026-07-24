@@ -8,7 +8,7 @@ This project incorporates design and data from the following open-source project
 
 ## 1. Base Font & Final Output: LXGW WenKai (OFL 1.1)
 
-The base CJK characters and the final compiled font files are governed by the SIL Open Font License, Version 1.1.
+The text glyphs (ASCII, Latin, CJK, and everything except PUA icons) and the final compiled font files are governed by the SIL Open Font License, Version 1.1.
 
 Copyright (c) 2026, enstw (https://ens.tw/font),  
 with Reserved Font Name "ENS Font" and "Elegant Nerd Sino".
@@ -60,27 +60,7 @@ THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 
 ---
 
-## 2. ASCII/English Characters: Meslo LGSDZ (Apache License 2.0)
-
-The ASCII and basic Latin characters patched into ENS Font are derived from Meslo LGSDZ.
-
-Copyright 2009, 2010, 2013 André Berg
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
----
-
-## 3. Terminal Icons: Nerd Fonts (MIT License)
+## 2. Terminal Icons: Nerd Fonts (MIT License)
 
 The PUA (Private Use Area) icons patched into this font are provided by the Nerd Fonts project.
 

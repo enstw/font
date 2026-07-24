@@ -9,9 +9,9 @@ Exit codes:
 
 GitHub Actions output variables written to $GITHUB_OUTPUT:
   VERSIONS_CHANGED  true | false
-  NEW_VERSION       e.g. 3.1.0
-  GIT_TAG           e.g. v3.1.0_lxgw1.521_meslo-lgsdz_nerd3.4.0
-  LXGW_TAG          e.g. v1.521
+  NEW_VERSION       e.g. 4.0.0
+  GIT_TAG           e.g. v4.0.0_lxgw1.522_nerd3.4.0
+  LXGW_TAG          e.g. v1.522
   NERD_TAG          e.g. v3.4.0
   PREV_LXGW_TAG     e.g. v1.521
   PREV_NERD_TAG     e.g. v3.4.0
@@ -127,17 +127,15 @@ def compact_version(raw: str) -> str:
     return raw.lstrip("vV")
 
 
-def build_git_tag(pkg_version: str, lxgw_tag: str, nerd_tag: str, atkinson_tag: str) -> str:
+def build_git_tag(pkg_version: str, lxgw_tag: str, nerd_tag: str) -> str:
     """
-    Construct the git tag encoding package version, tracked upstreams, and
-    the selected donor family.
+    Construct the git tag encoding package version and tracked upstreams.
 
-    Example: v3.1.5_lxgw1.522_atk2.001_meslo-lgsdz_nerd3.4.0
+    Example: v4.0.0_lxgw1.522_nerd3.4.0
     """
     lxgw_compact = compact_version(lxgw_tag)
     nerd_compact = compact_version(nerd_tag)
-    atk_compact = compact_version(atkinson_tag)
-    return f"v{pkg_version}_lxgw{lxgw_compact}_atk{atk_compact}_meslo-lgsdz_nerd{nerd_compact}"
+    return f"v{pkg_version}_lxgw{lxgw_compact}_nerd{nerd_compact}"
 
 
 def set_gha_output(key: str, value: str) -> None:
@@ -183,10 +181,9 @@ def main():
         current_pkg_ver = versions["packaging"]["version"]
         current_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
         current_nerd = versions["upstream"]["nerd_fonts"]["tag"]
-        current_atk = versions["upstream"]["atkinson_hyperlegible_next"]["tag"]
 
         new_pkg_ver = bump_patch(current_pkg_ver)
-        new_git_tag = build_git_tag(new_pkg_ver, current_lxgw, current_nerd, current_atk)
+        new_git_tag = build_git_tag(new_pkg_ver, current_lxgw, current_nerd)
 
         print(f"Force rebuild: bumping patch {current_pkg_ver} -> {new_pkg_ver}")
         print(f"New git tag: {new_git_tag}")
@@ -212,14 +209,12 @@ def main():
 
     current_lxgw_tag = versions["upstream"]["lxgw_wenkai"]["tag"]
     current_nerd_tag = versions["upstream"]["nerd_fonts"]["tag"]
-    current_atk_tag = versions["upstream"]["atkinson_hyperlegible_next"]["tag"]
     current_pkg_ver = versions["packaging"]["version"]
-    
+
     lxgw_repo = versions["upstream"]["lxgw_wenkai"].get("repo")
     nerd_repo = versions["upstream"]["nerd_fonts"].get("repo")
-    atk_repo = versions["upstream"]["atkinson_hyperlegible_next"].get("repo")
 
-    print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}, atk={current_atk_tag}")
+    print(f"Current versions: lxgw={current_lxgw_tag}, nerd={current_nerd_tag}")
     print("Checking upstream releases...")
 
     changed = False
@@ -263,25 +258,6 @@ def main():
     else:
         print(f"  Nerd Fonts: {current_nerd_tag}  [manual/skipped]")
 
-    if atk_repo and not versions["upstream"]["atkinson_hyperlegible_next"].get("manual"):
-        try:
-            atk_rel = get_latest_release(atk_repo, github_token)
-            new_atk_tag = atk_rel["tag_name"]
-            if new_atk_tag != current_atk_tag:
-                print(f"  Atkinson Next: {current_atk_tag} -> {new_atk_tag}  [NEW]")
-                versions["upstream"]["atkinson_hyperlegible_next"]["tag"] = new_atk_tag
-                versions["upstream"]["atkinson_hyperlegible_next"]["release_date"] = atk_rel[
-                    "published_at"
-                ]
-                changed = True
-            else:
-                print(f"  Atkinson Next: {current_atk_tag}  [no change]")
-        except Exception as e:
-            print(f"  WARNING: Could not check Atkinson Next: {e}", file=sys.stderr)
-            errors.append(f"Atkinson Next check failed: {e}")
-    else:
-        print(f"  Atkinson Next: {current_atk_tag}  [manual/skipped]")
-
     if errors:
         print(
             "\nERROR: Upstream release checks failed; aborting to avoid false 'no change'.",
@@ -319,8 +295,7 @@ def main():
     new_pkg_ver = bump_minor(current_pkg_ver)
     new_lxgw = versions["upstream"]["lxgw_wenkai"]["tag"]
     new_nerd = versions["upstream"]["nerd_fonts"]["tag"]
-    new_atk = versions["upstream"]["atkinson_hyperlegible_next"]["tag"]
-    new_git_tag = build_git_tag(new_pkg_ver, new_lxgw, new_nerd, new_atk)
+    new_git_tag = build_git_tag(new_pkg_ver, new_lxgw, new_nerd)
 
     print(f"Packaging version: {current_pkg_ver} -> {new_pkg_ver}")
     print(f"New git tag:       {new_git_tag}")
