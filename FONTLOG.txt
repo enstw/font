@@ -23,7 +23,7 @@ Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".
 
 Change Log
 
-2026-07-24 (v5.0.0) - Terminal furniture restored from Meslo
+2026-07-25 (v4.1.0) - Terminal furniture restored from Meslo
   - Box drawing, block elements, and curated ambiguous-width symbols
     (… arrows checks geometric math) transplanted from pinned Meslo LGSDZ
     into Mono / Mono Prop and fitted to the 500-unit cell. Terminals allot

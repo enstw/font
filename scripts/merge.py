@@ -25,7 +25,7 @@ Usage:
         --output  dist/ENSFontMono-Regular.ttf \
         --style   Regular \
         --mono \
-        --version 5.0.0 \
+        --version 4.1.0 \
         --lxgw-version 1.522 \
         --nerd-version 3.4.0
 """
