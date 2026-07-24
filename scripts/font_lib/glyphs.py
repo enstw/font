@@ -220,7 +220,6 @@ def fit_nerd_icons(
     prefix: str = "don_",
     cell_width: int | None = None,
     fit_all: bool = False,
-    icon_scale: float = 1.0,
 ) -> None:
     """
     Geometry pass for transplanted Nerd icon glyphs (every donor codepoint —
@@ -237,19 +236,15 @@ def fit_nerd_icons(
        full advance horizontally. cell_width forces the advance to one cell
        (mono / mono-prop); None keeps each glyph's own advance (proportional).
 
-    2. All other icons, when fit_all=True (strict mono): ONE shared affine
-       transform scales the donor em down to cell_width and centers the donor
-       line box in the base line box. A single transform (instead of
-       per-glyph bbox fitting) preserves the icon set's internal relative
+    2. All other icons, only when fit_all=True (strict mono): ONE shared
+       affine transform scales the donor em down to cell_width and centers
+       the donor line box in the base line box. A single transform (instead
+       of per-glyph bbox fitting) preserves the icon set's internal relative
        alignment and sizing. Advance is pinned to cell_width.
 
-    3. All other icons, when fit_all=False and icon_scale != 1.0 (Mono Prop
-       and the proportional build): the same single shared transform, but
-       with the given uniform scale and proportional advances (scaled, then
-       normalize_half_widths snaps them to cell multiples for mono-prop).
-       The symbols-only donor draws icons noticeably larger than the old
-       patcher-fitted text donors did relative to LXGW's letterforms;
-       icon_scale restores the icon-to-text proportion.
+    Non-strict-mono builds (Mono Prop, proportional) keep the donor's native
+    icon size and advances untouched — deliberately NOT rescaled to the
+    text's proportion (larger icons preferred; see AGENTS.md).
 
     Must run after check_upm_compatibility (donor already scaled to base UPM)
     and after transplant_glyphs, but before normalize_half_widths.
@@ -266,16 +261,14 @@ def fit_nerd_icons(
     donor_desc = donor["hhea"].descent
     upm = font["head"].unitsPerEm
 
-    # Shared uniform transform for non-powerline icons: scale the donor em
-    # (== base UPM after scaling) to the cell for strict mono, or by
-    # icon_scale otherwise, then center the donor line box midpoint on the
-    # base line box midpoint.
-    s = (cell_width / upm) if (fit_all and cell_width) else icon_scale
+    # Shared uniform transform for non-powerline icons (strict mono only):
+    # scale the donor em (== base UPM after scaling) to the cell, then center
+    # the donor line box midpoint on the base line box midpoint.
+    s = (cell_width / upm) if cell_width else 1.0
     dy_center = (base_asc + base_desc) / 2 - ((donor_asc + donor_desc) / 2) * s
 
     stretched = 0
     fitted = 0
-    scaled = 0
     seen: set[str] = set()
 
     for cp, gname in sorted(cmap.items()):
@@ -309,15 +302,10 @@ def fit_nerd_icons(
             _transform_glyph(font, gname, s, s, dx=0, dy=dy_center)
             hmtx.metrics[gname] = (cell_width, g.xMin)
             fitted += 1
-        elif icon_scale != 1.0:
-            _transform_glyph(font, gname, s, s, dx=0, dy=dy_center)
-            hmtx.metrics[gname] = (max(1, round(adv * icon_scale)), g.xMin)
-            scaled += 1
 
     log.info(
         f"  fit_nerd_icons: {stretched} powerline glyphs stretched to line box"
         + (f", {fitted} icons fitted to {cell_width}-unit cell" if fit_all else "")
-        + (f", {scaled} icons scaled by {icon_scale}" if scaled else "")
     )
 
 

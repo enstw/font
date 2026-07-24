@@ -68,14 +68,6 @@ log = logging.getLogger(__name__)
 MONO_CELL_WIDTH = 500
 DEFAULT_VERTICAL_DEBUG = ["H", "x", "█", "─", "│", "中", "你"]
 
-# Uniform scale for non-Powerline Nerd icons in the non-strict-mono builds
-# (Mono Prop and proportional). The symbols-only donor keeps its native icon
-# size; LXGW letterforms are drawn ~15% smaller than the old Atkinson/Meslo
-# donors' ('M' ink 437 vs 517 units), so unscaled icons read oversized next
-# to the text. 0.85 restores the v3 icon-to-text proportion.
-ICON_SCALE = 0.85
-
-
 def merge_fonts(
     wenkai_path: str,
     donor_path: str,
@@ -148,16 +140,16 @@ def merge_fonts(
     # Fit transplanted Nerd icons to the base font's geometry.
     # The symbols-only donor is not pre-fitted to any text font's cell (that
     # used to be the Nerd Fonts patcher's job). Powerline separators stretch
-    # to fill the line box in every variant; strict Mono scales every icon
-    # into a single 500-unit cell; other builds scale icons by ICON_SCALE to
-    # keep the icon-to-text proportion.
+    # to fill the line box in every variant; strict Mono additionally scales
+    # every icon into a single 500-unit cell. Other builds keep the donor's
+    # native icon size — deliberately NOT rescaled to match the text (larger
+    # icons preferred; see AGENTS.md).
     log.info("Fitting Nerd icons to base geometry...")
     fit_nerd_icons(
         base,
         donor,
         cell_width=cell_width if (is_mono or is_mono_prop) else None,
         fit_all=is_mono,
-        icon_scale=1.0 if is_mono else ICON_SCALE,
     )
 
     # Normalize advance widths to the cell grid for monospaced builds.

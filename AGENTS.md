@@ -62,12 +62,15 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   are deliberately NOT in the list. The Meslo tag is pinned in
   build-release.yml and NOT tracked by check_versions.py — these glyphs
   never change upstream, so it must never cause a version bump.
-- **The symbols-only donor draws icons larger than the old patcher-fitted
-  text donors** relative to LXGW's letterforms ('M' ink 437 vs Atkinson's
-  517 units). Non-strict-mono builds (Mono Prop, proportional) scale all
-  non-Powerline icons by ICON_SCALE = 0.85 (one shared transform) to keep
-  the icon-to-text proportion; strict Mono is unaffected (already fitted
-  to one cell).
+- **Do NOT rescale non-Powerline Nerd icons in non-strict-mono builds.**
+  The symbols-only donor draws icons larger than the old patcher-fitted
+  text donors relative to LXGW's letterforms ('M' ink 437 vs Atkinson's
+  517 units), and v4.1.0 tried ICON_SCALE = 0.85 to compensate — but the
+  scale anchors at x=0 so the shrunken ink sat left-justified in its cell,
+  and the user explicitly prefers the larger native icon size (reverted in
+  v4.1.x). Mono Prop and proportional builds keep the donor's native icon
+  geometry untouched; only strict Mono fits icons (into one cell, centered,
+  via fit_all).
 - **The symbols-only donor is not pre-fitted to the base cell.** When the
   donor was a Nerd-patched text font, the NF patcher had already scaled
   icons to the donor's cell. Symbols Nerd Font glyphs live on their own
