@@ -91,6 +91,15 @@ def transplant_glyphs(
 # fix_block_elements (edge snap).
 POWERLINE_FILL_CPS = frozenset(list(range(0xE0B0, 0xE0D5)) + [0xE0D6, 0xE0D7])
 
+# Terminals lay out by wcwidth — a PUA icon gets ONE cell no matter what the
+# font's advance says — and the prompt convention ("icon then a space") buys
+# it one more. Ink is drawn from the pen origin, so anything wider than those
+# two cells lands on the next printed character (U+F108 grazes a following
+# letter; U+F327 at 1335 units plows through it). ICON_INK_GAP is the margin
+# kept at each side of the 2-cell budget so clamped icons don't touch their
+# neighbor the way zero-sidebearing donor glyphs otherwise would.
+ICON_INK_GAP = 10
+
 
 def _transform_glyph(font: TTFont, gname: str, sx: float, sy: float, dx: float, dy: float) -> bool:
     """Apply x' = x*sx + dx, y' = y*sy + dy to a simple glyf glyph."""
@@ -242,9 +251,19 @@ def fit_nerd_icons(
        of per-glyph bbox fitting) preserves the icon set's internal relative
        alignment and sizing. Advance is pinned to cell_width.
 
-    Non-strict-mono builds (Mono Prop, proportional) keep the donor's native
-    icon size and advances untouched — deliberately NOT rescaled to the
-    text's proportion (larger icons preferred; see AGENTS.md).
+    3. Mono Prop (cell_width set, fit_all=False): native icon size is kept
+       UNLESS the ink is wider than the 2-cell terminal budget (the icon's
+       own wcwidth cell + the conventional trailing space) minus
+       ICON_INK_GAP per side. Oversized icons are scaled down uniformly to
+       that budget, centered in the 2-cell box, advance pinned to
+       2*cell_width (an exact grid multiple, so normalize_half_widths
+       leaves them in place). Advances can't fix this class of collision —
+       terminals ignore them — only ink can.
+
+    Non-strict-mono builds otherwise keep the donor's native icon size and
+    advances untouched — deliberately NOT rescaled to the text's proportion
+    (larger icons preferred; see AGENTS.md). Proportional builds are never
+    clamped: layout there honors real advances, which already cover the ink.
 
     Must run after check_upm_compatibility (donor already scaled to base UPM)
     and after transplant_glyphs, but before normalize_half_widths.
@@ -269,6 +288,7 @@ def fit_nerd_icons(
 
     stretched = 0
     fitted = 0
+    clamped = 0
     seen: set[str] = set()
 
     for cp, gname in sorted(cmap.items()):
@@ -302,10 +322,30 @@ def fit_nerd_icons(
             _transform_glyph(font, gname, s, s, dx=0, dy=dy_center)
             hmtx.metrics[gname] = (cell_width, g.xMin)
             fitted += 1
+        elif cell_width:
+            g.recalcBounds(glyf_table)
+            budget = 2 * cell_width
+            max_ink = budget - 2 * ICON_INK_GAP
+            ink_w = g.xMax - g.xMin
+            if ink_w <= max_ink:
+                continue
+            k = max_ink / ink_w
+            if not _transform_glyph(
+                font, gname, k, k,
+                dx=budget / 2 - (g.xMin + g.xMax) / 2 * k,
+                dy=(g.yMin + g.yMax) / 2 * (1 - k),
+            ):
+                log.warning(
+                    f"  icon U+{cp:04X} is not a simple glyph — ink clamp skipped"
+                )
+                continue
+            hmtx.metrics[gname] = (budget, g.xMin)
+            clamped += 1
 
     log.info(
         f"  fit_nerd_icons: {stretched} powerline glyphs stretched to line box"
         + (f", {fitted} icons fitted to {cell_width}-unit cell" if fit_all else "")
+        + (f", {clamped} oversized icons clamped to 2-cell ink budget" if clamped else "")
     )
 
 

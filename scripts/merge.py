@@ -141,9 +141,12 @@ def merge_fonts(
     # The symbols-only donor is not pre-fitted to any text font's cell (that
     # used to be the Nerd Fonts patcher's job). Powerline separators stretch
     # to fill the line box in every variant; strict Mono additionally scales
-    # every icon into a single 500-unit cell. Other builds keep the donor's
-    # native icon size — deliberately NOT rescaled to match the text (larger
-    # icons preferred; see AGENTS.md).
+    # every icon into a single 500-unit cell; Mono Prop clamps only icons
+    # whose ink exceeds the 2-cell terminal budget (own wcwidth cell + the
+    # conventional trailing space — e.g. U+F327 at 1335 units overlapped the
+    # next printed character). Other icons keep the donor's native size —
+    # deliberately NOT rescaled to match the text (larger icons preferred;
+    # see AGENTS.md).
     log.info("Fitting Nerd icons to base geometry...")
     fit_nerd_icons(
         base,
