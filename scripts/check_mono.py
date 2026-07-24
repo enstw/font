@@ -11,6 +11,11 @@ Checks:
   - Advance width histogram: acceptable widths are 0 or any positive multiple
     of cell_width (half-width, full-width CJK, 2-em/3-em dashes, etc.).
     Reports any non-zero, non-aligned widths with codepoint samples.
+  - Terminal-furniture cell fit: box drawing, block elements, and U+2026 are
+    wcwidth-narrow (terminals allot them ONE cell), so their advance must be
+    exactly cell_width and their ink must stay inside the cell (small
+    tolerance for the intentional tiling bleed). Guards against the v4.0
+    regression where these fell through to LXGW's full-width CJK forms.
 
 Exit 0 = pass, exit 1 = violations found.
 
@@ -107,6 +112,45 @@ def check_mono(font_path: str, cell_width: int, is_mono_prop: bool = False) -> b
                 f"Width {adv} (expected 0 or a positive multiple of {cell_width}): "
                 f"{len(samples)} glyphs — e.g. {sample_str}"
             )
+
+    # Check 4: terminal-furniture cell fit.
+    # Terminals give these codepoints exactly ONE cell (wcwidth-narrow /
+    # East-Asian-ambiguous), so a wider advance or wider ink overlaps the
+    # neighbouring cell. ±25 units of ink tolerance covers the intentional
+    # box-drawing tiling bleed; the ╱╲╳ diagonals (U+2571-2573) get more
+    # because their stroke crosses the cell edge at the corner by design
+    # (half a stroke width, magnified by the slope).
+    furniture_probe = list(range(0x2500, 0x25A0)) + [0x2026]
+    glyf = font["glyf"]
+    furniture_bad = []
+    for cp in furniture_probe:
+        ink_tol = 60 if cp in (0x2571, 0x2572, 0x2573) else 25
+        gname = cmap.get(cp)
+        if gname is None or gname not in hmtx.metrics:
+            continue
+        adv = hmtx.metrics[gname][0]
+        if adv != cell_width:
+            furniture_bad.append(f"U+{cp:04X} advance {adv} != {cell_width}")
+            continue
+        g = glyf[gname]
+        try:
+            g.recalcBounds(glyf)
+        except Exception:
+            continue
+        if g.numberOfContours == 0:
+            continue
+        if g.xMin < -ink_tol or g.xMax > cell_width + ink_tol:
+            furniture_bad.append(
+                f"U+{cp:04X} ink x[{g.xMin},{g.xMax}] outside cell [0,{cell_width}]±{ink_tol}"
+            )
+    if furniture_bad:
+        shown = "; ".join(furniture_bad[:5])
+        if len(furniture_bad) > 5:
+            shown += f" ... +{len(furniture_bad) - 5} more"
+        violations.append(
+            f"Terminal furniture not fitted to one cell ({len(furniture_bad)} "
+            f"codepoints): {shown}"
+        )
 
     # Report
     if violations:

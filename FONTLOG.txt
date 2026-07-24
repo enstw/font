@@ -11,14 +11,29 @@ Basic Font Information
 ENS Font is a merged terminal font combining:
   - LXGW WenKai TC / WenKai Mono TC (all text glyphs incl. ASCII/Latin/CJK, SIL OFL 1.1)
   - Symbols Nerd Font (PUA icons, MIT)
+  - Meslo LGSDZ (terminal furniture: box drawing / block elements /
+    ambiguous-width symbols, Mono variants only, Apache 2.0, pinned)
 
-The merge is automated via GitHub Actions and tracks upstream releases.
+The merge is automated via GitHub Actions and tracks upstream releases
+(the Meslo furniture donor is pinned and not tracked).
 
 Reserved Font Names: "ENS Font" and "Elegant Nerd Sino".
 
 ---
 
 Change Log
+
+2026-07-24 (v5.0.0) - Terminal furniture restored from Meslo
+  - Box drawing, block elements, and curated ambiguous-width symbols
+    (… arrows checks geometric math) transplanted from pinned Meslo LGSDZ
+    into Mono / Mono Prop and fitted to the 500-unit cell. Terminals allot
+    these codepoints ONE cell; v4.0 let them fall through to LXGW's
+    full-width CJK forms, whose ink overlapped the next cell (e.g. "─("
+    and "…/" in prompts)
+  - CJK-flavored symbols (※ ‼ ①-⑳ ❶-➓ hexagrams) stay LXGW full-width
+  - Non-Powerline Nerd icons scaled 0.85x in Mono Prop / proportional
+    builds to restore the v3 icon-to-text proportion
+  - check_mono.py now gates furniture advance and ink against the cell
 
 2026-07-24 (v4.0.0) - Pure LXGW text, symbols-only donor
   - Removed Atkinson Hyperlegible Next and Meslo LGSDZ donors entirely
@@ -58,6 +73,9 @@ Acknowledgements
 
 - Ryan L McIntyre and Nerd Fonts contributors: Nerd Fonts project
   https://github.com/ryanoasis/nerd-fonts
+
+- André Berg: Meslo LG (terminal-furniture donor for Mono variants)
+  https://github.com/andreberg/Meslo-Font
 
 - Fontworks Inc.: Klee One (upstream ancestor of LXGW WenKai)
   https://github.com/fontworks-fonts/Klee

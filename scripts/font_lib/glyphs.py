@@ -7,14 +7,16 @@ from .metrics import get_glyph_bounds
 log = logging.getLogger(__name__)
 
 def copy_glyph(
-    src_font: TTFont, dst_font: TTFont, src_name: str, dst_name: str
+    src_font: TTFont, dst_font: TTFont, src_name: str, dst_name: str,
+    prefix: str = "ens_",
 ) -> None:
     """
     Deep-copy a glyph from src_font into dst_font.
 
     Handles composite glyphs recursively: if the glyph references component glyphs
     (e.g., 'Aacute' references 'A' and 'acutecomb'), those components are also copied.
-    Components are namespaced with dst_name prefix to avoid collisions.
+    Components are namespaced per donor prefix — two donors can both carry a
+    component named 'period' without silently sharing one outline.
 
     Copies: glyf table entry (outlines) + hmtx table entry (advance width + LSB).
 
@@ -38,8 +40,8 @@ def copy_glyph(
         src_glyph_copy = copy.deepcopy(src_glyph)
         for component in src_glyph_copy.components:
             comp_src = component.glyphName
-            comp_dst = f"_ens_{comp_src}"
-            copy_glyph(src_font, dst_font, comp_src, comp_dst)
+            comp_dst = f"_{prefix}{comp_src}"
+            copy_glyph(src_font, dst_font, comp_src, comp_dst, prefix)
             component.glyphName = comp_dst
         src_glyph_copy.removeHinting()
         dst_glyf[dst_name] = src_glyph_copy  # already a detached copy
@@ -74,7 +76,7 @@ def transplant_glyphs(
     for cp, src_glyph_name in src_cmap.items():
         dst_glyph_name = glyph_name_for_codepoint(cp, prefix)
         try:
-            copy_glyph(src_font, dst_font, src_glyph_name, dst_glyph_name)
+            copy_glyph(src_font, dst_font, src_glyph_name, dst_glyph_name, prefix)
             update_cmap(dst_font, cp, dst_glyph_name)
             count += 1
         except Exception as e:
@@ -102,12 +104,123 @@ def _transform_glyph(font: TTFont, gname: str, sx: float, sy: float, dx: float, 
     return True
 
 
+# Terminal-furniture codepoints for Mono / Mono Prop builds: characters that
+# terminals allot ONE cell (wcwidth-narrow / East-Asian-ambiguous) but that the
+# LXGW base draws CJK-style on the full em, so their ink overlaps the next
+# cell in a terminal grid. Transplanted from a pinned monospaced text donor
+# (Meslo, Bitstream Vera lineage — drawn for a terminal cell natively) and
+# fitted to the base cell.
+#
+# Deliberately NOT included, so they keep LXGW's full-width CJK forms:
+# ※ ‼ ①-⑳ ❶-➓ ⸺ ⸻ hexagrams and other enclosed/CJK-flavored symbols.
+#
+# Fill glyphs must tile edge-to-edge in both axes: x is fitted here, y is
+# fix_block_elements' job (shared design-box -> line-box rescale + overshoot).
+FURNITURE_FILL_CPS = frozenset(
+    list(range(0x2500, 0x25A0)) +      # box drawing + block elements
+    list(range(0x25E2, 0x25E6))        # ◢◣◤◥ cell-filling triangles
+)
+# Symbol glyphs keep their aspect ratio: uniform baseline-anchored scale.
+FURNITURE_SYMBOL_CPS = frozenset(
+    list(range(0x2190, 0x2200)) +      # arrows
+    list(range(0x2200, 0x2300)) +      # mathematical operators
+    list(range(0x25A0, 0x25E2)) +      # geometric shapes ■□▲●◆ ...
+    list(range(0x25E6, 0x2600)) +      # ... minus the fill triangles
+    [0x2010, 0x2014, 0x2015, 0x2016,   # ‐ — ― ‖
+     0x2020, 0x2021, 0x2025, 0x2026,   # † ‡ ‥ …
+     0x2027, 0x2030, 0x2031, 0x203F,   # ‧ ‰ ‱ ‿
+     0x2713, 0x2714, 0x2717, 0x2718]   # ✓ ✔ ✗ ✘
+)
+
+
+def transplant_terminal_furniture(
+    base: TTFont,
+    donor: TTFont,
+    cell_width: int,
+    prefix: str = "fur_",
+) -> int:
+    """
+    Transplant terminal-furniture glyphs from a monospaced text donor and fit
+    them to the base cell. Mono / Mono Prop builds only.
+
+    The donor must already be scaled to the base UPM (check_upm_compatibility).
+    Its cell width is measured from 'M'. Two treatments:
+
+      - FURNITURE_FILL_CPS: x-only map [0, donor_cell] -> [0, cell_width] so
+        edges keep tiling seamlessly; vertical fit happens later in
+        fix_block_elements (one shared transform for the whole range).
+      - FURNITURE_SYMBOL_CPS: uniform baseline-anchored scale by
+        cell_width / donor_cell, preserving the symbol's aspect ratio.
+        Codepoints the base already draws at <= one cell keep the LXGW
+        design; only full-width base glyphs are replaced.
+
+    Codepoints missing from the donor are left untouched (they stay LXGW
+    full-width — the rare-math tail).
+
+    Returns the number of glyphs transplanted.
+    """
+    base_cmap = get_best_cmap(base)
+    donor_cmap = get_best_cmap(donor)
+    hmtx = base["hmtx"]
+    glyf_table = base["glyf"]
+
+    if 0x004D not in donor_cmap:
+        log.warning("transplant_terminal_furniture: donor has no 'M' — skipping")
+        return 0
+    donor_cell = donor["hmtx"].metrics[donor_cmap[0x004D]][0]
+    if donor_cell <= 0:
+        log.warning("transplant_terminal_furniture: donor cell width unusable — skipping")
+        return 0
+    s = cell_width / donor_cell
+    log.info(
+        f"  furniture donor cell: {donor_cell} -> {cell_width} units (scale {s:.3f})"
+    )
+
+    count = 0
+    for cp in sorted(FURNITURE_FILL_CPS | FURNITURE_SYMBOL_CPS):
+        if cp not in donor_cmap:
+            continue
+        fill = cp in FURNITURE_FILL_CPS
+        if not fill:
+            base_gname = base_cmap.get(cp)
+            if (
+                base_gname
+                and base_gname in hmtx.metrics
+                and hmtx.metrics[base_gname][0] <= cell_width
+            ):
+                continue  # LXGW already draws it at one cell — keep the base design
+
+        dst_name = glyph_name_for_codepoint(cp, prefix)
+        try:
+            copy_glyph(donor, base, donor_cmap[cp], dst_name, prefix)
+            update_cmap(base, cp, dst_name)
+        except Exception as e:
+            log.warning(f"  Could not copy furniture U+{cp:04X}: {e}")
+            continue
+
+        g = glyf_table[dst_name]
+        transformed = _transform_glyph(
+            base, dst_name, s, 1.0 if fill else s, dx=0, dy=0
+        )
+        if not transformed and g.numberOfContours != 0:
+            log.warning(
+                f"  furniture U+{cp:04X} is not a simple glyph — advance pinned, outline untouched"
+            )
+        lsb = g.xMin if transformed else hmtx.metrics[dst_name][1]
+        hmtx.metrics[dst_name] = (cell_width, lsb)
+        count += 1
+
+    log.info(f"  transplant_terminal_furniture: {count} glyphs fitted to {cell_width}-unit cell")
+    return count
+
+
 def fit_nerd_icons(
     font: TTFont,
     donor: TTFont,
     prefix: str = "don_",
     cell_width: int | None = None,
     fit_all: bool = False,
+    icon_scale: float = 1.0,
 ) -> None:
     """
     Geometry pass for transplanted Nerd icon glyphs (every donor codepoint —
@@ -124,11 +237,19 @@ def fit_nerd_icons(
        full advance horizontally. cell_width forces the advance to one cell
        (mono / mono-prop); None keeps each glyph's own advance (proportional).
 
-    2. All other icons, only when fit_all=True (strict mono): ONE shared
-       affine transform scales the donor em down to cell_width and centers
-       the donor line box in the base line box. A single transform (instead
-       of per-glyph bbox fitting) preserves the icon set's internal relative
+    2. All other icons, when fit_all=True (strict mono): ONE shared affine
+       transform scales the donor em down to cell_width and centers the donor
+       line box in the base line box. A single transform (instead of
+       per-glyph bbox fitting) preserves the icon set's internal relative
        alignment and sizing. Advance is pinned to cell_width.
+
+    3. All other icons, when fit_all=False and icon_scale != 1.0 (Mono Prop
+       and the proportional build): the same single shared transform, but
+       with the given uniform scale and proportional advances (scaled, then
+       normalize_half_widths snaps them to cell multiples for mono-prop).
+       The symbols-only donor draws icons noticeably larger than the old
+       patcher-fitted text donors did relative to LXGW's letterforms;
+       icon_scale restores the icon-to-text proportion.
 
     Must run after check_upm_compatibility (donor already scaled to base UPM)
     and after transplant_glyphs, but before normalize_half_widths.
@@ -145,14 +266,16 @@ def fit_nerd_icons(
     donor_desc = donor["hhea"].descent
     upm = font["head"].unitsPerEm
 
-    # Shared uniform transform for non-powerline icons (strict mono only):
-    # scale the donor em (== base UPM after scaling) to the cell, then center
-    # the donor line box midpoint on the base line box midpoint.
-    s = (cell_width / upm) if cell_width else 1.0
+    # Shared uniform transform for non-powerline icons: scale the donor em
+    # (== base UPM after scaling) to the cell for strict mono, or by
+    # icon_scale otherwise, then center the donor line box midpoint on the
+    # base line box midpoint.
+    s = (cell_width / upm) if (fit_all and cell_width) else icon_scale
     dy_center = (base_asc + base_desc) / 2 - ((donor_asc + donor_desc) / 2) * s
 
     stretched = 0
     fitted = 0
+    scaled = 0
     seen: set[str] = set()
 
     for cp, gname in sorted(cmap.items()):
@@ -186,10 +309,15 @@ def fit_nerd_icons(
             _transform_glyph(font, gname, s, s, dx=0, dy=dy_center)
             hmtx.metrics[gname] = (cell_width, g.xMin)
             fitted += 1
+        elif icon_scale != 1.0:
+            _transform_glyph(font, gname, s, s, dx=0, dy=dy_center)
+            hmtx.metrics[gname] = (max(1, round(adv * icon_scale)), g.xMin)
+            scaled += 1
 
     log.info(
         f"  fit_nerd_icons: {stretched} powerline glyphs stretched to line box"
         + (f", {fitted} icons fitted to {cell_width}-unit cell" if fit_all else "")
+        + (f", {scaled} icons scaled by {icon_scale}" if scaled else "")
     )
 
 

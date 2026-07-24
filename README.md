@@ -32,11 +32,11 @@ Download the latest version from the [GitHub Releases](https://github.com/enstw/
 
 ## ✨ Variants / 產物說明
 
-| Variant / 產物 | Text Base (incl. ASCII) | Icon Donor (PUA) | Characteristics / 特性 |
-| :--- | :--- | :--- | :--- |
-| **ENS Font** | WenKai TC | Symbols Nerd Font | Proportional spacing / 全比例混合 |
-| **ENS Font Mono** | WenKai Mono TC | Symbols Nerd Font Mono | **Strictly Monospace** (500/1000 grid, 1-cell icons). Ideal for most terminals / 嚴格等寬，終端機首選 |
-| **ENS Font Mono Prop** | WenKai Mono TC | Symbols Nerd Font | Mixed width. Large icons / 混合等寬，大圖標 |
+| Variant / 產物 | Text Base (incl. ASCII) | Icon Donor (PUA) | Terminal Furniture | Characteristics / 特性 |
+| :--- | :--- | :--- | :--- | :--- |
+| **ENS Font** | WenKai TC | Symbols Nerd Font | — (keeps WenKai) | Proportional spacing / 全比例混合 |
+| **ENS Font Mono** | WenKai Mono TC | Symbols Nerd Font Mono | Meslo (pinned) | **Strictly Monospace** (500/1000 grid, 1-cell icons). Ideal for most terminals / 嚴格等寬，終端機首選 |
+| **ENS Font Mono Prop** | WenKai Mono TC | Symbols Nerd Font | Meslo (pinned) | Mixed width. Large icons / 混合等寬，大圖標 |
 
 *Available in **Regular** and **Bold**. We recommend using "Faux Italic" in your editor if needed.*
 *提供 **Regular** 與 **Bold** 兩種字重。若需斜體，請在編輯器或終端機開啟 Faux Italic。*
@@ -49,7 +49,8 @@ Rules: **If the donor font has the character, use it. Otherwise, fill from WenKa
 | Source / 來源 | Responsibility / 負責範圍 |
 | :--- | :--- |
 | **Symbols Nerd Font** | Nerd Font Icons (PUA), Powerline separators |
-| **LXGW WenKai TC** | Everything else: ASCII, Latin, CJK (Hanzi/Kanji), Kana, Punctuation, Box drawing |
+| **Meslo** (Mono variants only, pinned) | Terminal furniture: box drawing, block elements, and ambiguous-width symbols (… ← ✓ ● — etc.). Terminals allot these ONE cell, but WenKai draws them CJK full-width — the Meslo forms are fitted to the 500-unit cell so prompts and TUIs never overlap. CJK-flavored symbols (※ ①② ❶❷ 「」) stay WenKai full-width. |
+| **LXGW WenKai TC** | Everything else: ASCII, Latin, CJK (Hanzi/Kanji), Kana, Punctuation |
 
 ## ⚙️ Usage / 使用建議
 
@@ -77,14 +78,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r scripts/requirements.txt
 
-# Download upstreams and run merge (example for Regular)
+# Download upstreams and run merge (example for Mono Regular)
 # See scripts/merge.py for all flags
 python scripts/merge.py \
-  --wenkai  path/to/LXGWWenKaiTC-Regular.ttf \
-  --donor   path/to/SymbolsNerdFont-Regular.ttf \
-  --output  dist/ENSFont-Regular.ttf \
+  --wenkai  path/to/LXGWWenKaiMonoTC-Regular.ttf \
+  --donor   path/to/SymbolsNerdFontMono-Regular.ttf \
+  --furniture-donor path/to/MesloLGSDZNerdFontMono-Regular.ttf \
+  --output  dist/ENSFontMono-Regular.ttf \
   --style   Regular \
-  --version 4.0.0 \
+  --mono \
+  --version 5.0.0 \
   --lxgw-version 1.522 \
   --nerd-version 3.4.0
 ```
@@ -118,6 +121,7 @@ ENS Font is released under the **SIL Open Font License 1.1**.
 | :--- | :--- | :--- |
 | [LXGW WenKai TC](https://github.com/lxgw/LxgwWenKaiTC) | SIL OFL 1.1 | Text Base (ASCII / Latin / CJK) |
 | [Nerd Fonts](https://github.com/ryanoasis/nerd-fonts) | MIT | Icons (PUA) |
+| [Meslo LG](https://github.com/andreberg/Meslo-Font) | Apache 2.0 | Terminal furniture (box drawing / ambiguous-width symbols, Mono variants) |
 
 *Reserved Font Names: **"ENS Font"** and **"Elegant Nerd Sino"**.*
 *The upstream names "LXGW", "霞鶩", and "Klee" are NOT used in this derivative font.*

@@ -3,21 +3,29 @@
 merge.py - Merges LXGWWenKaiTC(*) + Nerd Fonts symbols into ENS Font (Elegant Nerd Sino).
 
 Merge strategy:
-  Base:   LXGW WenKai TC / WenKai Mono TC  — ASCII, Latin, CJK, kana, fullwidth,
-          box drawing: every text glyph
-  Donor:  Symbols Nerd Font (Mono flavor for the strict-mono build) — PUA icons only
+  Base:      LXGW WenKai TC / WenKai Mono TC  — ASCII, Latin, CJK, kana,
+             fullwidth: every text glyph
+  Donor:     Symbols Nerd Font (Mono flavor for the strict-mono build) — PUA
+             icons only
+  Furniture: Meslo LGSDZ Nerd Font Mono (pinned) — box drawing, block
+             elements, and curated ambiguous-width symbols for Mono and
+             Mono Prop builds. Terminals allot these ONE cell; LXGW draws
+             them CJK full-width, so its ink would overlap the next cell.
 
 All donor codepoints are transplanted into the base, overwriting any existing WenKai TC
 entry at the same codepoint (in practice only the handful of Powerline glyphs both
-fonts carry). WenKai TC provides everything else, including the entire ASCII range.
+fonts carry). The furniture donor then overrides its curated codepoint set. WenKai TC
+provides everything else, including the entire ASCII range.
 
 Usage:
     python scripts/merge.py \
-        --wenkai  fonts/wenkai/LXGWWenKaiTC-Regular.ttf \
-        --donor   fonts/symbols/SymbolsNerdFont-Regular.ttf \
-        --output  dist/ENSFont-Regular.ttf \
+        --wenkai  fonts/wenkai/LXGWWenKaiMonoTC-Regular.ttf \
+        --donor   fonts/symbols/SymbolsNerdFontMono-Regular.ttf \
+        --furniture-donor fonts/meslo/MesloLGSDZNerdFontMono-Regular.ttf \
+        --output  dist/ENSFontMono-Regular.ttf \
         --style   Regular \
-        --version 4.0.0 \
+        --mono \
+        --version 5.0.0 \
         --lxgw-version 1.522 \
         --nerd-version 3.4.0
 """
@@ -43,6 +51,7 @@ from font_lib.metrics import (
 )
 from font_lib.glyphs import (
     transplant_glyphs,
+    transplant_terminal_furniture,
     normalize_half_widths,
     fix_block_elements,
     fit_nerd_icons,
@@ -59,6 +68,13 @@ log = logging.getLogger(__name__)
 MONO_CELL_WIDTH = 500
 DEFAULT_VERTICAL_DEBUG = ["H", "x", "█", "─", "│", "中", "你"]
 
+# Uniform scale for non-Powerline Nerd icons in the non-strict-mono builds
+# (Mono Prop and proportional). The symbols-only donor keeps its native icon
+# size; LXGW letterforms are drawn ~15% smaller than the old Atkinson/Meslo
+# donors' ('M' ink 437 vs 517 units), so unscaled icons read oversized next
+# to the text. 0.85 restores the v3 icon-to-text proportion.
+ICON_SCALE = 0.85
+
 
 def merge_fonts(
     wenkai_path: str,
@@ -72,13 +88,16 @@ def merge_fonts(
     nerd_ver: str,
     is_mono: bool = False,
     is_mono_prop: bool = False,
+    furniture_path: str | None = None,
     debug_vertical_cps: list[int] | None = None,
 ) -> None:
     """
     Main merge function.
 
-    Base:  LXGW WenKai / WenKai Mono  - all text glyphs including ASCII/Latin
-    Donor: Symbols Nerd Font (Mono flavor for strict-mono builds) - PUA icons
+    Base:      LXGW WenKai / WenKai Mono  - all text glyphs including ASCII/Latin
+    Donor:     Symbols Nerd Font (Mono flavor for strict-mono builds) - PUA icons
+    Furniture: Meslo (pinned) - box drawing / block elements / ambiguous-width
+               terminal symbols, Mono and Mono Prop builds only
 
     Result is renamed to ENS Font for OFL compliance.
     """
@@ -112,17 +131,33 @@ def merge_fonts(
     )
     log.info(f"  -> {donor_count} glyphs transplanted")
 
+    # Transplant terminal furniture (box drawing, block elements, curated
+    # ambiguous-width symbols) from the pinned Meslo donor. Terminals allot
+    # these codepoints ONE cell, but LXGW draws them CJK-style on the full
+    # em — the ink would overlap the next cell. Runs after the icon
+    # transplant so furniture wins any codepoint both donors carry.
+    if furniture_path and (is_mono or is_mono_prop):
+        log.info(f"Loading terminal-furniture donor: {furniture_path}")
+        furniture = TTFont(furniture_path)
+        check_upm_compatibility(base, furniture)
+        log.info("Transplanting terminal furniture (furniture overrides all)...")
+        transplant_terminal_furniture(base, furniture, cell_width)
+    elif furniture_path:
+        log.info("Furniture donor given but build is proportional — keeping LXGW forms.")
+
     # Fit transplanted Nerd icons to the base font's geometry.
     # The symbols-only donor is not pre-fitted to any text font's cell (that
     # used to be the Nerd Fonts patcher's job). Powerline separators stretch
-    # to fill the line box in every variant; strict Mono additionally scales
-    # every icon into a single 500-unit cell.
+    # to fill the line box in every variant; strict Mono scales every icon
+    # into a single 500-unit cell; other builds scale icons by ICON_SCALE to
+    # keep the icon-to-text proportion.
     log.info("Fitting Nerd icons to base geometry...")
     fit_nerd_icons(
         base,
         donor,
         cell_width=cell_width if (is_mono or is_mono_prop) else None,
         fit_all=is_mono,
+        icon_scale=1.0 if is_mono else ICON_SCALE,
     )
 
     # Normalize advance widths to the cell grid for monospaced builds.
@@ -243,6 +278,15 @@ def main():
     parser.add_argument("--mono", action="store_true", help="Assert that the output should be monospaced")
     parser.add_argument("--mono-prop", action="store_true", help="Assert monospaced metadata but allow proportional Nerd Font icons")
     parser.add_argument(
+        "--furniture-donor",
+        default=None,
+        help=(
+            "Path to a monospaced terminal-furniture donor TTF (pinned Meslo). "
+            "Supplies box drawing / block elements / ambiguous-width symbols "
+            "for --mono and --mono-prop builds; ignored otherwise."
+        ),
+    )
+    parser.add_argument(
         "--debug-vertical",
         nargs="*",
         metavar="GLYPH",
@@ -271,6 +315,7 @@ def main():
         nerd_ver=args.nerd_version,
         is_mono=args.mono,
         is_mono_prop=args.mono_prop,
+        furniture_path=args.furniture_donor,
         debug_vertical_cps=debug_vertical_cps,
     )
 

@@ -45,7 +45,29 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   they don't exist in the donor cmap. Since v4 the donor is Symbols Nerd
   Font (PUA icons only), so the only real overlap is the handful of
   Powerline glyphs both fonts carry — donor still wins. Do NOT add range
-  filtering; the fonts naturally partition the Unicode space.
+  filtering to the ICON donor; the fonts naturally partition the Unicode
+  space. (The terminal-furniture donor below is the deliberate exception:
+  it transplants an explicit curated codepoint list, nothing else.)
+- **Terminals allot East-Asian-ambiguous chars ONE cell; LXGW draws them
+  full-width.** Box drawing (U+2500-257F), block elements (U+2580-259F),
+  `…`, arrows, checkmarks, geometric shapes etc. are wcwidth-narrow, but
+  LXGW draws them CJK-style on the full 1000-unit em — the ink overlaps the
+  next terminal cell (v4.0 regression: `─(` and `…/` collided in prompts).
+  Fix: `transplant_terminal_furniture` pulls the curated set from a PINNED
+  Meslo LGSDZ NF Mono (battle-tested Bitstream Vera-lineage terminal
+  glyphs) for Mono/Mono Prop builds and fits it to the 500 cell — fill
+  glyphs get an x-only map (y is fix_block_elements' job), symbols get a
+  uniform baseline-anchored scale, and codepoints LXGW already draws at one
+  cell keep the LXGW design. CJK-flavored symbols (※ ‼ ①-⑳ ❶-➓ hexagrams)
+  are deliberately NOT in the list. The Meslo tag is pinned in
+  build-release.yml and NOT tracked by check_versions.py — these glyphs
+  never change upstream, so it must never cause a version bump.
+- **The symbols-only donor draws icons larger than the old patcher-fitted
+  text donors** relative to LXGW's letterforms ('M' ink 437 vs Atkinson's
+  517 units). Non-strict-mono builds (Mono Prop, proportional) scale all
+  non-Powerline icons by ICON_SCALE = 0.85 (one shared transform) to keep
+  the icon-to-text proportion; strict Mono is unaffected (already fitted
+  to one cell).
 - **The symbols-only donor is not pre-fitted to the base cell.** When the
   donor was a Nerd-patched text font, the NF patcher had already scaled
   icons to the donor's cell. Symbols Nerd Font glyphs live on their own

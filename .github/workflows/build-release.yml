@@ -15,6 +15,11 @@
 #   - ENS Font (non-mono):  Symbols Nerd Font (proportional icons)
 #   - ENS Font Mono:        Symbols Nerd Font Mono (1-cell icons)
 #   - ENS Font Mono Prop:   Symbols Nerd Font (proportional Nerd icons)
+# Terminal-furniture donor (box drawing / block elements / ambiguous-width
+# symbols — codepoints terminals allot ONE cell but LXGW draws full-width):
+#   - ENS Font Mono / Mono Prop:  Meslo LGSDZ Nerd Font Mono, PINNED release
+#     (these glyphs never change upstream; not tracked by check_versions.py)
+#   - ENS Font (non-mono):        none — keeps LXGW's CJK full-width forms
 #
 # Required secrets:
 #   BOT_PAT  - Fine-grained PAT with: contents:write
@@ -192,6 +197,29 @@ jobs:
           test -f fonts/symbols/SymbolsNerdFont-Regular.ttf || exit 1
           test -f fonts/symbols/SymbolsNerdFontMono-Regular.ttf || exit 1
 
+      - name: Download Meslo terminal-furniture donor (pinned)
+        run: |
+          mkdir -p fonts/meslo
+
+          # Box drawing / block elements / ambiguous-width symbol donor for
+          # the Mono and Mono Prop builds. PINNED on purpose: these glyphs
+          # never change upstream, so the tag is not tracked by
+          # check_versions.py and never causes a version bump.
+          MESLO_TAG="v3.4.0"
+          ARCHIVE_MESLO="Meslo.tar.xz"
+          URL_MESLO="https://github.com/ryanoasis/nerd-fonts/releases/download/${MESLO_TAG}/${ARCHIVE_MESLO}"
+          echo "Downloading ${ARCHIVE_MESLO} (${MESLO_TAG}) ..."
+          curl -fsSL "$URL_MESLO" -o "/tmp/${ARCHIVE_MESLO}"
+          echo "Extracting Meslo furniture donors ..."
+          tar -xJf "/tmp/${ARCHIVE_MESLO}" -C fonts/meslo/ --wildcards \
+            '*MesloLGSDZNerdFontMono-Regular.ttf' \
+            '*MesloLGSDZNerdFontMono-Bold.ttf'
+
+          echo "Meslo downloads:"
+          ls -lh fonts/meslo/
+          test -f fonts/meslo/MesloLGSDZNerdFontMono-Regular.ttf || exit 1
+          test -f fonts/meslo/MesloLGSDZNerdFontMono-Bold.ttf || exit 1
+
       - name: Upload font sources as artifact
         uses: actions/upload-artifact@v7
         with:
@@ -199,6 +227,7 @@ jobs:
           path: |
             fonts/wenkai/
             fonts/symbols/
+            fonts/meslo/
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -227,6 +256,7 @@ jobs:
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
             donor_subdir: symbols
             donor_file: SymbolsNerdFontMono-Regular.ttf
+            furniture_file: MesloLGSDZNerdFontMono-Regular.ttf
             output_file: ENSFontMono-Regular.ttf
             is_mono: true
             family_name: ENS Font Mono
@@ -245,6 +275,7 @@ jobs:
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
             donor_subdir: symbols
             donor_file: SymbolsNerdFontMono-Regular.ttf
+            furniture_file: MesloLGSDZNerdFontMono-Bold.ttf
             output_file: ENSFontMono-Bold.ttf
             is_mono: true
             family_name: ENS Font Mono
@@ -254,6 +285,7 @@ jobs:
             wenkai_file: LXGWWenKaiMonoTC-Regular.ttf
             donor_subdir: symbols
             donor_file: SymbolsNerdFont-Regular.ttf
+            furniture_file: MesloLGSDZNerdFontMono-Regular.ttf
             output_file: ENSFontMonoProp-Regular.ttf
             is_mono: false
             is_mono_prop: true
@@ -264,6 +296,7 @@ jobs:
             wenkai_file: LXGWWenKaiMonoTC-Medium.ttf
             donor_subdir: symbols
             donor_file: SymbolsNerdFont-Regular.ttf
+            furniture_file: MesloLGSDZNerdFontMono-Bold.ttf
             output_file: ENSFontMonoProp-Bold.ttf
             is_mono: false
             is_mono_prop: true
@@ -317,6 +350,7 @@ jobs:
             --lxgw-version "$LXGW_VER" \
             --nerd-version "$NERD_VER" \
             $DEBUG_ARGS \
+            $(if [ -n "${{ matrix.furniture_file }}" ]; then echo "--furniture-donor fonts/meslo/${{ matrix.furniture_file }}"; fi) \
             $(if [ "${{ matrix.is_mono }}" = "true" ]; then echo "--mono"; fi) \
             $(if [ "${{ matrix.is_mono_prop }}" = "true" ]; then echo "--mono-prop"; fi)
 
