@@ -74,11 +74,15 @@ commit, then trigger `build-release.yml` via `workflow_dispatch`.
   The ONE exception (v4.1.x): terminals lay out by wcwidth — a PUA icon
   gets one cell regardless of its advance, and the prompt convention
   ("icon + trailing space") buys one more — so Mono Prop icons whose INK
-  exceeds 2 cells (~420 of ~10,400; e.g. U+F108 at 1039 units grazed the
-  next letter, U+F327 at 1335 plowed through it) are scaled down per-glyph
-  to the 2-cell budget minus ICON_INK_GAP per side, centered, advance
-  pinned to 2 cells. Advances cannot fix this class of collision;
-  ink is the only lever the font has in a terminal.
+  exceeds 2 cells (e.g. U+F108 at 1039 units grazed the next letter,
+  U+F327 at 1335 plowed through it) are scaled down per-glyph to the
+  2-cell budget minus ICON_INK_GAP per side, centered, advance pinned to
+  2 cells. Advances cannot fix this class of collision; ink is the only
+  lever the font has in a terminal. The gap must be VISIBLE, not just
+  nonzero: v4.2.0 used ICON_INK_GAP=10 (~1/3 physical px at 18pt retina)
+  and still read as a collision; 60/side matches LXGW's letter
+  sidebearings (21–73), clamping ~2,530 of ~10,400 icons — all of which
+  already had 2-cell advances, so only ink changes.
 - **The symbols-only donor is not pre-fitted to the base cell.** When the
   donor was a Nerd-patched text font, the NF patcher had already scaled
   icons to the donor's cell. Symbols Nerd Font glyphs live on their own

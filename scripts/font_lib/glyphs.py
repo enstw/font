@@ -97,8 +97,12 @@ POWERLINE_FILL_CPS = frozenset(list(range(0xE0B0, 0xE0D5)) + [0xE0D6, 0xE0D7])
 # two cells lands on the next printed character (U+F108 grazes a following
 # letter; U+F327 at 1335 units plows through it). ICON_INK_GAP is the margin
 # kept at each side of the 2-cell budget so clamped icons don't touch their
-# neighbor the way zero-sidebearing donor glyphs otherwise would.
-ICON_INK_GAP = 10
+# neighbor the way zero-sidebearing donor glyphs otherwise would. 10 units
+# proved invisible in practice (v4.2.0: ~1/3 physical px at 18pt retina —
+# still read as a collision); 60 units per side ≈ 3px there, on par with
+# LXGW's own letter sidebearings (21–73 units), so a clamped icon clears
+# its neighbor the way adjacent letters clear each other.
+ICON_INK_GAP = 60
 
 
 def _transform_glyph(font: TTFont, gname: str, sx: float, sy: float, dx: float, dy: float) -> bool:
