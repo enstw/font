@@ -1,10 +1,10 @@
 {
   "packaging": {
-    "version": "4.4.0",
-    "last_built": "2026-08-03T09:31:21.280696+00:00",
-    "git_tag": "v4.4.0_lxgw1.522_nerd3.5.0",
+    "version": "4.5.0",
+    "last_built": "2026-08-22T06:06:51.886982+00:00",
+    "git_tag": "v4.5.0_lxgw1.522_nerd3.5.1",
     "prev_lxgw_tag": "v1.522",
-    "prev_nerd_tag": "v3.4.0"
+    "prev_nerd_tag": "v3.5.0"
   },
   "upstream": {
     "lxgw_wenkai": {
@@ -14,8 +14,8 @@
     },
     "nerd_fonts": {
       "repo": "ryanoasis/nerd-fonts",
-      "tag": "v3.5.0",
-      "release_date": "2026-08-02T23:35:36Z",
+      "tag": "v3.5.1",
+      "release_date": "2026-08-21T15:21:46Z",
       "archives": [
         "NerdFontsSymbolsOnly.zip"
       ]
